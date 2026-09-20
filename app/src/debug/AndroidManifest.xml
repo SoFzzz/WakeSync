@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      AVISO PARA FASE 4 (wear-ui-architect):
+      Este manifest vive exclusivamente en src/debug/ para proveer una Activity mínima
+      de prueba para la Fase 1. Cuando se cree la MainActivity real en Fase 4 (en com.wakesync.ui),
+      el intent-filter MAIN/LAUNCHER de esta Activity debe eliminarse o reemplazarse para
+      evitar íconos duplicados en el reloj.
+    -->
+    <application>
+        <activity
+            android:name="com.wakesync.test.TestServiceActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.DeviceDefault">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
