@@ -41,6 +41,7 @@ class TransitManagerTest {
     @Before
     fun setUp() {
         SessionManager.resetInstanceForTesting()
+        com.wakesync.core.alerts.AlertControllerProvider.resetForTesting()
         sessionManager = SessionManager()
         mockAlertController = TestAlertController()
         sessionManager.registerAlertController(mockAlertController)

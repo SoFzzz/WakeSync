@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- General Application -->
+    <string name="app_name">WakeSync</string>
+
+    <!-- Navigation & Titles -->
+    <string name="title_home">WakeSync</string>
+    <string name="title_nap">Siesta</string>
+    <string name="title_transit">Transporte</string>
+    <string name="title_settings">Configuración</string>
+
+    <!-- Actions & Buttons -->
+    <string name="btn_start_nap">Siesta</string>
+    <string name="btn_add_destination">+ Destino</string>
+    <string name="btn_start_transit">Transporte</string>
+    <string name="btn_stop">Detener</string>
+    <string name="btn_dismiss_alert">Descartar Alarma</string>
+    <string name="btn_simulate_nap">Simular Siesta</string>
+    <string name="btn_simulate_route">Simular Ruta</string>
+    <string name="btn_grant_permissions">Conceder Permisos</string>
+    <string name="btn_clear_history">Borrar Historial</string>
+    <string name="btn_confirm">Confirmar</string>
+    <string name="btn_cancel">Cancelar</string>
+
+    <!-- Nap Screen Stages -->
+    <string name="nap_calibrating_title">Calibrando Basal</string>
+    <string name="nap_calibrating_desc">Mantén la calma y respira profundo…</string>
+    <string name="nap_monitoring_title">Monitoreando</string>
+    <string name="nap_deep_rest_title">Reposo Confirmado</string>
+    <string name="nap_base_hr_format">FC Base: %1$d BPM</string>
+    <string name="nap_current_hr_format">FC: %1$d BPM</string>
+    <string name="nap_rest_score_format">Score: %1$.2f</string>
+    <string name="nap_remaining_time_format">%1$02d:%2$02d</string>
+    <string name="nap_dest_distance_format">Destino: %1$.0f m</string>
+
+    <!-- Transit Screen -->
+    <string name="transit_tracking_title">En Ruta</string>
+    <string name="transit_distance_format">%1$.0f m</string>
+    <string name="transit_speed_format">%1$.1f m/s</string>
+    <string name="transit_radius_format">Radio Alerta: %1$.0f m</string>
+    <string name="transit_destination_label">Destino: %1$s</string>
+    <string name="transit_state_awake">Alerta (Vigilia)</string>
+    <string name="transit_state_deep_rest">Alerta Reforzada (Reposo)</string>
+
+    <!-- Rest States -->
+    <string name="rest_state_awake">Despierto</string>
+    <string name="rest_state_light">Reposo Ligero</string>
+    <string name="rest_state_deep">Reposo Profundo</string>
+    <string name="rest_state_unknown">Analizando…</string>
+    <string name="rest_state_sensor_unavailable">Sensor No Disponible</string>
+
+    <!-- Active Alert Overlay -->
+    <string name="alert_soft_title">Aviso Suave</string>
+    <string name="alert_soft_desc">Finaliza automáticamente</string>
+    <string name="alert_moderate_title">Alerta de Llegada</string>
+    <string name="alert_moderate_desc">Aproximación detectada</string>
+    <string name="alert_urgent_title">¡ALERTA CRÍTICA!</string>
+    <string name="alert_urgent_desc">Requiere descarte activo</string>
+    <string name="alert_touch_to_dismiss">TOCA PARA DESACTIVAR</string>
+
+    <!-- Sensor Unavailable Banner -->
+    <string name="sensor_unavailable_title">Sensor No Disponible</string>
+    <string name="sensor_unavailable_msg">Verifica que el reloj esté ajustado a la muñeca</string>
+
+    <!-- Conflict Dialog -->
+    <string name="conflict_dialog_title">Conflicto de Sesión</string>
+    <string name="conflict_dialog_msg">Ya existe una sesión de %1$s activa. ¿Deseas finalizarla para iniciar %2$s?</string>
+    <string name="conflict_dialog_proceed">Finalizar e Iniciar</string>
+    <string name="conflict_dialog_keep">Mantener Actual</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_history_title">Historial de Sesiones</string>
+    <string name="settings_clear_history_confirm_title">¿Borrar Historial?</string>
+    <string name="settings_clear_history_confirm_msg">Esta acción eliminará todos los registros locales de forma permanente.</string>
+    <string name="settings_permissions_title">Permisos del Sistema</string>
+    <string name="settings_permissions_all_granted">Todos los permisos concedidos</string>
+    <string name="settings_permissions_missing">Faltan permisos requeridos</string>
+    <string name="settings_simulation_title">Modo Simulación</string>
+    <string name="settings_simulation_desc">Usa datos sintéticos para evaluación</string>
+    <string name="settings_app_info">WakeSync Wear OS v1.0.0</string>
+
+    <!-- Predefined Destinations -->
+    <string name="dest_campus_ucc">Campus UCC</string>
+    <string name="dest_estacion_metro">Estación Metro</string>
+    <string name="dest_casa">Casa</string>
+    <string name="dest_none">Sin Destino</string>
+    <string name="select_destination_title">Seleccionar Destino</string>
+</resources>
