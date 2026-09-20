@@ -1,0 +1,51 @@
+# =====================================================================
+# WakeSync — .gitignore
+# =====================================================================
+
+# 1. Agentes y Asistentes IA (especificado por el usuario)
+.agent/
+.agents/
+.antigravityignore
+
+# 2. Archivos Markdown (ignorar todos excepto la documentación maestra)
+*.md
+!WAKESYNC_MASTER_DOCUMENTATION.md
+
+# 3. Configuración Local y Secretos (SDK paths, API keys de Insights)
+local.properties
+.env
+*.key
+
+# 4. Artefactos de Compilación de Android y Gradle
+*.apk
+*.aar
+*.ap_
+*.aab
+*.dex
+*.class
+bin/
+gen/
+out/
+build/
+app/build/
+.gradle/
+buildOutput/
+
+# 5. Entorno de Desarrollo (Android Studio / IntelliJ / Eclipse)
+.idea/
+*.iml
+*.iws
+*.ipr
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 6. Archivos Temporales, Logs y Scratches
+*.log
+*.tmp
+*.txt
+scratch/
+
+# 7. Archivos del Sistema Operativo
+.DS_Store
+Thumbs.db
