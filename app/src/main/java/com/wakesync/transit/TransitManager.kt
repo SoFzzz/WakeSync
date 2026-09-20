@@ -12,11 +12,14 @@ import com.wakesync.core.model.SessionOutcome
 import com.wakesync.core.model.SessionType
 import com.wakesync.core.model.TransitPhase
 import com.wakesync.core.session.SessionManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.dropWhile
 import kotlinx.coroutines.flow.first
@@ -81,31 +84,37 @@ class TransitManager(
 
         trackingJob?.cancel()
         trackingJob = scope.launch {
-            locationFlow.collect { location ->
-                // Cierre 5: Guard against re-entry once phase transitioned to ALERTING or session is terminating
-                if (currentTransitPhase == TransitPhase.ALERTING || isTerminating.get()) {
-                    return@collect
+            try {
+                locationFlow.collect { location ->
+                    // Cierre 5: Guard against re-entry once phase transitioned to ALERTING or session is terminating
+                    if (currentTransitPhase == TransitPhase.ALERTING || isTerminating.get()) {
+                        currentCoroutineContext().cancel()
+                        return@collect
+                    }
+
+                    val nowMs = timeProvider()
+                    updateSmoothedSpeed(location, nowMs)
+
+                    val distanceMeters = GeofenceCalculator.haversineMeters(location, destination)
+                    val currentRestState = sessionManager.state.value.biometricMetrics.restState
+                    val isDeepRest = (currentRestState == RestState.DEEP_REST)
+                    val dynamicRadiusMeters = GeofenceCalculator.calculateDynamicAlertRadius(smoothedSpeedMps, isDeepRest)
+
+                    sessionManager.updateTransitProgress(
+                        TransitPhase.TRACKING,
+                        distanceMeters.toFloat(),
+                        dynamicRadiusMeters.toFloat(),
+                        smoothedSpeedMps.toFloat()
+                    )
+
+                    if (distanceMeters <= dynamicRadiusMeters) {
+                        currentTransitPhase = TransitPhase.ALERTING
+                        handleArrival(currentRestState, distanceMeters, dynamicRadiusMeters)
+                        currentCoroutineContext().cancel()
+                    }
                 }
-
-                val nowMs = timeProvider()
-                updateSmoothedSpeed(location, nowMs)
-
-                val distanceMeters = GeofenceCalculator.haversineMeters(location, destination)
-                val currentRestState = sessionManager.state.value.biometricMetrics.restState
-                val isDeepRest = (currentRestState == RestState.DEEP_REST)
-                val dynamicRadiusMeters = GeofenceCalculator.calculateDynamicAlertRadius(smoothedSpeedMps, isDeepRest)
-
-                sessionManager.updateTransitProgress(
-                    TransitPhase.TRACKING,
-                    distanceMeters.toFloat(),
-                    dynamicRadiusMeters.toFloat(),
-                    smoothedSpeedMps.toFloat()
-                )
-
-                if (distanceMeters <= dynamicRadiusMeters) {
-                    currentTransitPhase = TransitPhase.ALERTING
-                    handleArrival(currentRestState, distanceMeters, dynamicRadiusMeters)
-                }
+            } catch (e: CancellationException) {
+                // Expected coroutine cancellation upon arrival or explicit session stop
             }
         }
         Log.i(TAG, "Transit tracking session started towards ${destination.name ?: destination.latitude}")
@@ -144,6 +153,7 @@ class TransitManager(
         val controller = resolveAlertController()
         if (controller == null) {
             terminateSession(SessionOutcome.COMPLETED, stopActiveAlert = false)
+            currentCoroutineContext().cancel()
             return
         }
 
@@ -163,6 +173,7 @@ class TransitManager(
             // Decoupled one-shot (Option B): trigger MODERATE and complete without stopping active vibration
             controller.triggerAlert(AlertLevel.MODERATE)
             terminateSession(SessionOutcome.COMPLETED, stopActiveAlert = false)
+            currentCoroutineContext().cancel()
         }
     }
 
