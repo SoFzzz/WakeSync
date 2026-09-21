@@ -10,6 +10,9 @@
 # 2. Archivos Markdown (ignorar todos excepto la documentación maestra)
 *.md
 !WAKESYNC_MASTER_DOCUMENTATION.md
+!Disenio_Documentacion.md
+!Jerarquia_Documentacion.md
+!Navegacion_Documentacion.md
 
 # 3. Configuración Local y Secretos (SDK paths, API keys de Insights)
 local.properties
