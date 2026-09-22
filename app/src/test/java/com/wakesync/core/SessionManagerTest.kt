@@ -2,6 +2,7 @@ package com.wakesync.core
 
 import com.wakesync.core.alerts.AlertControllerContract
 import com.wakesync.core.model.AlertLevel
+import com.wakesync.core.model.GeoPoint
 import com.wakesync.core.model.NapPhase
 import com.wakesync.core.model.SessionOutcome
 import com.wakesync.core.model.SessionType
@@ -43,6 +44,17 @@ class SessionManagerTest {
         assertEquals(SessionType.NAP, sessionManager.state.value.sessionType)
         assertEquals(NapPhase.CALIBRATING, sessionManager.state.value.napState.phase)
         assertNull(sessionManager.state.value.pendingConflict)
+    }
+
+    @Test
+    fun startSession_withDestination_updatesConfirmedDestinationInState() {
+        val destination = GeoPoint(6.2518, -75.5684, "Campus UCC")
+        val started = sessionManager.requestStartSession(SessionType.TRANSIT, destination)
+
+        assertTrue(started)
+        assertEquals(SessionType.TRANSIT, sessionManager.state.value.sessionType)
+        assertEquals(destination, sessionManager.state.value.confirmedDestination)
+        assertEquals("Campus UCC", sessionManager.state.value.confirmedDestination?.name)
     }
 
     @Test

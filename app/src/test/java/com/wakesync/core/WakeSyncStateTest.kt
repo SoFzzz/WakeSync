@@ -35,6 +35,33 @@ class WakeSyncStateTest {
         assertNull(state.pendingConflict)
         assertEquals(false, state.isSimulated)
         assertEquals(emptyList<String>(), state.missingPermissions)
+        assertNull(state.confirmedDestination)
+    }
+
+    @Test
+    fun confirmedDestination_resolvesDynamicallyAccordingToSessionType() {
+        val destTransit = GeoPoint(6.2518, -75.5684, "Campus UCC")
+        val destNap = GeoPoint(6.1720, -75.5890, "Parque Envigado")
+
+        // Case 1: SessionType.NONE -> null
+        val stateNone = WakeSyncState(sessionType = SessionType.NONE)
+        assertNull(stateNone.confirmedDestination)
+
+        // Case 2: SessionType.TRANSIT -> transitState.destination
+        val stateTransit = WakeSyncState(
+            sessionType = SessionType.TRANSIT,
+            transitState = TransitSessionState(destination = destTransit)
+        )
+        assertEquals(destTransit, stateTransit.confirmedDestination)
+        assertEquals("Campus UCC", stateTransit.confirmedDestination?.name)
+
+        // Case 3: SessionType.NAP -> napState.destination
+        val stateNap = WakeSyncState(
+            sessionType = SessionType.NAP,
+            napState = NapSessionState(destination = destNap)
+        )
+        assertEquals(destNap, stateNap.confirmedDestination)
+        assertEquals("Parque Envigado", stateNap.confirmedDestination?.name)
     }
 
     @Test

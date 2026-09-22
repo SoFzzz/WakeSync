@@ -143,6 +143,7 @@ class TransitManager(
      */
     private suspend fun handleArrival(restState: RestState, distanceMeters: Double, radiusMeters: Double) {
         val targetLevel = if (restState == RestState.DEEP_REST) AlertLevel.URGENT else AlertLevel.MODERATE
+        Log.i(TAG, "Arrival detected: dist=${distanceMeters.toFloat()}m <= R_alert=${radiusMeters.toFloat()}m (speed=${smoothedSpeedMps.toFloat()}m/s, isDeepRest=${restState == RestState.DEEP_REST}, targetLevel=$targetLevel)")
         sessionManager.updateTransitProgress(
             TransitPhase.ALERTING,
             distanceMeters.toFloat(),

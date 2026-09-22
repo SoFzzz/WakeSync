@@ -22,8 +22,7 @@ class WakeSyncApplication : Application() {
         super.onCreate()
         Log.i(TAG, "WakeSyncApplication initialized")
 
-        val hapticController = HapticVibrationController(this)
-        AlertControllerProvider.register(hapticController)
-        SessionManager.getInstance(this).registerAlertController(hapticController)
+        val coordinator = AppSessionCoordinator.getInstance(this)
+        coordinator.start()
     }
 }

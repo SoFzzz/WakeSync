@@ -12,6 +12,7 @@ import java.util.UUID
  * @property durationSeconds Total elapsed duration of the session in seconds.
  * @property restLatencySeconds Seconds taken to achieve DEEP_REST (Nap mode only; null otherwise).
  * @property outcome Final termination outcome of the session.
+ * @property insightText Gemini AI generated wellness insight (<=140 chars); null if not yet generated (CR-01, RF-INS-03).
  */
 data class SessionRecord(
     val id: String = UUID.randomUUID().toString(),
@@ -19,5 +20,7 @@ data class SessionRecord(
     val startTimestamp: Long,
     val durationSeconds: Int,
     val restLatencySeconds: Int?,
-    val outcome: SessionOutcome
+    val outcome: SessionOutcome,
+    val insightText: String? = null
 )
+

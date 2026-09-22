@@ -295,6 +295,7 @@ class NapManager(
      * Manually cancels the active nap session.
      */
     fun stopSession() {
+        Log.i(TAG, "stopSession: cancelling napJob, locationTrackingJob, absoluteCapJob, dismissalCollectorJob")
         napJob?.cancel()
         napJob = null
         locationTrackingJob?.cancel()

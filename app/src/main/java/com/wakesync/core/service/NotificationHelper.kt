@@ -89,14 +89,15 @@ class NotificationHelper(private val context: Context) {
 
     private fun formatTransitStatus(state: WakeSyncState): String {
         val distance = state.transitState.currentDistanceMeters
+        val destinationName = state.confirmedDestination?.name ?: "destination"
         return when (state.transitState.phase) {
             TransitPhase.TRACKING -> {
-                if (distance != null) "Approaching destination: ${distance.toInt()}m"
+                if (distance != null) "Approaching $destinationName: ${distance.toInt()}m"
                 else "Tracking location..."
             }
-            TransitPhase.APPROACHING -> "Near destination: ${distance?.toInt() ?: 0}m"
-            TransitPhase.ALERTING -> "Destination reached! Wake up alert active"
-            TransitPhase.COMPLETED -> "Arrived at destination"
+            TransitPhase.APPROACHING -> "Near $destinationName: ${distance?.toInt() ?: 0}m"
+            TransitPhase.ALERTING -> "$destinationName reached! Wake up alert active"
+            TransitPhase.COMPLETED -> "Arrived at $destinationName"
             TransitPhase.CANCELLED -> "Transit tracking cancelled"
             TransitPhase.IDLE -> "Standby"
         }
