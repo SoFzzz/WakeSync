@@ -2,9 +2,12 @@ package com.wakesync
 
 import android.app.Application
 import android.util.Log
-import com.wakesync.alerts.HapticVibrationController
-import com.wakesync.core.alerts.AlertControllerProvider
-import com.wakesync.core.session.SessionManager
+import com.wakesync.core.data.SessionHistoryRepository
+import com.wakesync.core.insights.InsightProvider
+import com.wakesync.core.places.DestinationSearchProvider
+import com.wakesync.insights.InsightRepository
+import com.wakesync.network.BackendClient
+import com.wakesync.places.DestinationSearchRepository
 
 /**
  * Main Application class serving as the Composition Root for WakeSync.
@@ -24,5 +27,21 @@ class WakeSyncApplication : Application() {
 
         val coordinator = AppSessionCoordinator.getInstance(this)
         coordinator.start()
+
+        // Phase 4b Connectivity Registrations (CR-01, RF-CORE-07, RF-NET-01, RF-PLC-01, RF-INS-01)
+        val backendClient = BackendClient(this)
+        val destinationRepository = DestinationSearchRepository(
+            backendClient = backendClient,
+            currentLocationProvider = { coordinator.sessionManager.state.value.transitState.destination }
+        )
+        val sessionHistoryRepository = SessionHistoryRepository(this)
+        val insightRepository = InsightRepository(
+            backendClient = backendClient,
+            sessionHistoryRepository = sessionHistoryRepository
+        )
+
+        DestinationSearchProvider.register(destinationRepository)
+        InsightProvider.register(insightRepository)
+        Log.i(TAG, "Registered DestinationSearchProvider and InsightProvider contracts")
     }
 }

@@ -49,3 +49,15 @@ scratch/
 # 7. Archivos del Sistema Operativo
 .DS_Store
 Thumbs.db
+
+# 8. Backend (Node.js / TypeScript / Cloudflare Worker)
+node_modules/
+backend/.wrangler/
+.wrangler/
+backend/dist/
+dist/
+.dev.vars
+.dev.vars.*
+*.tsbuildinfo
+coverage/
+.wrangler-tmp/
