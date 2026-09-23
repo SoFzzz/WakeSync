@@ -409,6 +409,51 @@ class NapManagerTest {
         assertEquals(NapPhase.COMPLETED, sessionManager.state.value.napState.phase)
     }
 
+    @Test
+    fun `calibration hands the averaged HR_base to the rest estimator callback`() = testScope.runTest {
+        val calibrated = mutableListOf<Int>()
+        val wiredNapManager = NapManager(
+            sessionManager = sessionManager,
+            restEvaluationFlow = restEvaluationFlow,
+            heartRateFlow = heartRateFlow,
+            alertController = mockAlertController,
+            scope = testScope,
+            onBaseHeartRateCalibrated = { calibrated.add(it) }
+        )
+
+        wiredNapManager.startSession()
+        heartRateFlow.emit(80)
+        advanceTimeBy(5_000L)
+        heartRateFlow.emit(90)
+        advanceTimeBy(16_000L)
+        runCurrent()
+
+        assertEquals(NapPhase.MONITORING, sessionManager.state.value.napState.phase)
+        assertEquals(listOf(85), calibrated)
+        wiredNapManager.stopSession()
+    }
+
+    @Test
+    fun `calibration without readings keeps the fallback away from the rest estimator callback`() = testScope.runTest {
+        val calibrated = mutableListOf<Int>()
+        val wiredNapManager = NapManager(
+            sessionManager = sessionManager,
+            restEvaluationFlow = restEvaluationFlow,
+            alertController = mockAlertController,
+            scope = testScope,
+            onBaseHeartRateCalibrated = { calibrated.add(it) }
+        )
+
+        wiredNapManager.startSession()
+        advanceTimeBy(21_000L)
+        runCurrent()
+
+        // Phase still advances with the internal 70 BPM fallback, but the estimator never receives it
+        assertEquals(NapPhase.MONITORING, sessionManager.state.value.napState.phase)
+        assertTrue("Callback must not be invoked without real HR readings", calibrated.isEmpty())
+        wiredNapManager.stopSession()
+    }
+
     class TestAlertController : AlertControllerContract {
         private val _activeAlertLevel = MutableStateFlow(AlertLevel.NONE)
         override val activeAlertLevel: StateFlow<AlertLevel> = _activeAlertLevel.asStateFlow()

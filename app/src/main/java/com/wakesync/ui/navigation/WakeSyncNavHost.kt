@@ -273,7 +273,12 @@ fun WakeSyncNavHost(
                     record = recordForSummary,
                     insightState = gatedInsightState,
                     onRetryInsight = { insightContract?.retry() },
-                    onBackToHome = { dismissedRecordId = recordForSummary.id }
+                    onBackToHome = {
+                        dismissedRecordId = recordForSummary.id
+                        // Persist the dismissal in core state: `remember` alone is lost when the
+                        // Activity is recreated, which re-opened this summary with no way out (F10)
+                        sessionManager.acknowledgeSessionEnd()
+                    }
                 )
             }
 

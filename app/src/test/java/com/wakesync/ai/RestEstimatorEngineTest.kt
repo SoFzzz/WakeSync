@@ -3,6 +3,7 @@ package com.wakesync.ai
 import com.wakesync.core.model.RestState
 import com.wakesync.sensors.mock.MockSensorEngine
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -146,6 +147,28 @@ class RestEstimatorEngineTest {
         )
         assertEquals(1.0f, result.quietude, 0.0001f) // 1 - min(1, 0.0 / 2.5) = 1.0
         assertTrue(result.isDataValid)
+    }
+
+    @Test
+    fun `data is valid only after HR_base is set and stop clears it for the next session`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val timedEngine = RestEstimatorEngine(mockSensorEngine, dispatcher) { testScheduler.currentTime }
+
+        timedEngine.start(backgroundScope)
+        mockSensorEngine.emitDirect(hr = 60, svm = 0.0f)
+        assertFalse("Without HR_base the cycle must be invalid", timedEngine.evaluateCurrentCycle().isDataValid)
+
+        timedEngine.setBaseHeartRate(75)
+        assertTrue("With HR_base and fresh HR the cycle must be valid", timedEngine.evaluateCurrentCycle().isDataValid)
+
+        timedEngine.stop()
+        assertFalse("stop() must reset the published result", timedEngine.evaluationResult.value.isDataValid)
+        assertEquals(0, timedEngine.evaluationResult.value.consecutiveDeepRestCount)
+
+        timedEngine.start(backgroundScope)
+        mockSensorEngine.emitDirect(hr = 60, svm = 0.0f)
+        assertFalse("A new session must not reuse the previous HR_base", timedEngine.evaluateCurrentCycle().isDataValid)
+        timedEngine.stop()
     }
 
     @Test

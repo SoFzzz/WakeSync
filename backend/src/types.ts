@@ -8,14 +8,14 @@ export interface Env {
   // ---------------------------------------------------------------------------
   // Configuración NO secreta (inyectada automáticamente vía [vars] en wrangler.toml)
   // ---------------------------------------------------------------------------
-  GEMINI_MODEL: string;
+  DEEPSEEK_MODEL: string;
 
   // ---------------------------------------------------------------------------
   // Secretos de Cloudflare (inyectados exclusivamente vía `wrangler secret put`,
   // NUNCA en wrangler.toml, NUNCA en el repositorio, NUNCA en el APK)
   // ---------------------------------------------------------------------------
   MAPBOX_ACCESS_TOKEN: string;
-  GEMINI_API_KEY: string;
+  DEEPSEEK_API_KEY: string;
   APP_TOKEN: string;
 }
 

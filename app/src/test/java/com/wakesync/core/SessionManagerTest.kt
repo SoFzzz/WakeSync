@@ -208,4 +208,27 @@ class SessionManagerTest {
         assertTrue("Ending session must cancel active alerts", mockController.cancelCalled)
         assertEquals(AlertLevel.NONE, sessionManager.state.value.activeAlertLevel)
     }
+
+    @Test
+    fun acknowledgeSessionEnd_resetsTerminalPhasesToIdle() {
+        sessionManager.requestStartSession(SessionType.NAP)
+        sessionManager.endSession(SessionOutcome.CANCELLED)
+        assertEquals(NapPhase.CANCELLED, sessionManager.state.value.napState.phase)
+
+        sessionManager.acknowledgeSessionEnd()
+
+        assertEquals(NapPhase.IDLE, sessionManager.state.value.napState.phase)
+        assertEquals(TransitPhase.IDLE, sessionManager.state.value.transitState.phase)
+        assertEquals(SessionType.NONE, sessionManager.state.value.sessionType)
+    }
+
+    @Test
+    fun acknowledgeSessionEnd_isNoOpWhileSessionIsActive() {
+        sessionManager.requestStartSession(SessionType.NAP)
+
+        sessionManager.acknowledgeSessionEnd()
+
+        assertEquals(SessionType.NAP, sessionManager.state.value.sessionType)
+        assertEquals(NapPhase.CALIBRATING, sessionManager.state.value.napState.phase)
+    }
 }

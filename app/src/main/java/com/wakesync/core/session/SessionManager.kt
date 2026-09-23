@@ -201,6 +201,22 @@ class SessionManager(
     }
 
     /**
+     * Acknowledges the post-session summary: returns the terminal nap/transit phases to IDLE so the
+     * UI stops treating the last session as "just ended", even after the Activity is recreated.
+     * No-op while a session is active.
+     */
+    fun acknowledgeSessionEnd() {
+        if (_state.value.sessionType != SessionType.NONE) return
+        _state.update {
+            it.copy(
+                napState = it.napState.copy(phase = NapPhase.IDLE),
+                transitState = it.transitState.copy(phase = TransitPhase.IDLE)
+            )
+        }
+        Log.d(TAG, "Session end acknowledged: phases reset to IDLE")
+    }
+
+    /**
      * Updates biometric telemetry. Called by sensor-ai-engineer.
      */
     fun updateBiometrics(metrics: BiometricMetrics) {

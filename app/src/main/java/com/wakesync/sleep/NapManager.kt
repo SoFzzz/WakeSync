@@ -43,7 +43,9 @@ class NapManager(
     private val heartRateFlow: Flow<Int>? = null,
     private val locationFlow: Flow<GeoPoint>? = null,
     private val alertController: AlertControllerContract? = null,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
+    /** Receives HR_base once calibration ends so the rest estimator can compute ΔHR_relativa. */
+    private val onBaseHeartRateCalibrated: (Int) -> Unit = {}
 ) {
 
     companion object {
@@ -172,6 +174,13 @@ class NapManager(
             DEFENSIVE_FALLBACK_HR_BPM
         }
         baseHeartRate = calibratedHr
+        if (calibrationSamples.isNotEmpty()) {
+            onBaseHeartRateCalibrated(calibratedHr)
+        } else {
+            // The invented fallback must not feed the estimator: without real HR_base it reports
+            // invalid data (SENSOR_UNAVAILABLE) instead of scoring against a made-up baseline
+            Log.w(TAG, "HR_base not sent to the rest estimator: calibration had no valid readings")
+        }
 
         // --- PHASE 2: Monitoring ---
         currentNapPhase = NapPhase.MONITORING

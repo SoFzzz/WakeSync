@@ -3,7 +3,7 @@
  * - Constant-time token comparison (mitigating timing attacks)
  * - In-memory IP rate limiter (60 req/min)
  * - Sanitized request logging (method, path, status, latency only - RNF-BE-02)
- * - Upstream fetch with strict AbortController timeouts (4s Mapbox / 8s Gemini)
+ * - Upstream fetch with strict AbortController timeouts (4s Mapbox / 8s DeepSeek)
  */
 
 /** Timeout for map provider calls (Mapbox Search Box, Geocoding and Static Images APIs). */

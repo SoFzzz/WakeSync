@@ -71,7 +71,8 @@ class AppSessionCoordinator(
         heartRateFlow = sensorRepository.getHeartRate(),
         locationFlow = sensorRepository.getLocation(),
         alertController = hapticController,
-        scope = scope
+        scope = scope,
+        onBaseHeartRateCalibrated = restEstimatorEngine::setBaseHeartRate
     )
 
     val transitManager: TransitManager = TransitManager(
@@ -189,7 +190,8 @@ class AppSessionCoordinator(
         Log.i(TAG, "Simulate Nap triggered: activating MockSensorEngine")
         sessionManager.setSimulationMode(true)
         sensorRepository.setSimulated(true)
-        mockSensorEngine.startNapSimulation(scope, durationSeconds = 60, baseHr = 75)
+        // 10 s ramp so DEEP_REST is reachable within the 30 s acceptance window (Section 9)
+        mockSensorEngine.startNapSimulation(scope, durationSeconds = 10, baseHr = 75)
     }
 
     /**

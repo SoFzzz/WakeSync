@@ -61,16 +61,11 @@ class RestEstimatorEngine(
         const val MAX_SENSOR_STALENESS_MS: Long = 15_000L // RF-SENS-04: >15s without valid readings
     }
 
-    private val _evaluationResult = MutableStateFlow(
-        RestEvaluationResult(
-            score = 0.0f,
-            state = RestState.AWAKE,
-            consecutiveDeepRestCount = 0,
-            isDataValid = false
-        )
-    )
+    private val _evaluationResult = MutableStateFlow(initialResult())
     val evaluationResult: StateFlow<RestEvaluationResult> = _evaluationResult.asStateFlow()
 
+    // Written by the sleep module's calibration coroutine, read by the evaluation loop
+    @Volatile
     private var baseHeartRate: Int? = null
     private var consecutiveDeepRestCount: Int = 0
     private var lastValidState: RestState = RestState.AWAKE
@@ -142,7 +137,8 @@ class RestEstimatorEngine(
     }
 
     /**
-     * Stops background evaluation.
+     * Stops background evaluation and clears per-session state (HR_base, DEEP_REST streak, last
+     * result) so the next session neither reuses a stale baseline nor replays a confirmed DEEP_REST.
      */
     fun stop() {
         engineJob?.cancel()
@@ -151,7 +147,19 @@ class RestEstimatorEngine(
             hrSamples.clear()
             svmSamples.clear()
         }
+        baseHeartRate = null
+        consecutiveDeepRestCount = 0
+        lastValidState = RestState.AWAKE
+        lastValidHrTimestamp = 0L
+        _evaluationResult.value = initialResult()
     }
+
+    private fun initialResult() = RestEvaluationResult(
+        score = 0.0f,
+        state = RestState.AWAKE,
+        consecutiveDeepRestCount = 0,
+        isDataValid = false
+    )
 
     /**
      * Evaluates a single inference cycle. Can be called directly for unit testing.

@@ -5,9 +5,9 @@ import { resetRateLimits } from '../src/utils';
 import { toMapboxZoom } from '../src/maps';
 
 const mockEnv: Env = {
-  GEMINI_MODEL: 'gemini-3.1-flash-lite',
+  DEEPSEEK_MODEL: 'deepseek-flash',
   MAPBOX_ACCESS_TOKEN: 'test-mapbox-token',
-  GEMINI_API_KEY: 'test-gemini-key',
+  DEEPSEEK_API_KEY: 'test-deepseek-key',
   APP_TOKEN: 'correct-secret-token-32bytes',
 };
 

@@ -1,7 +1,9 @@
 import { Env, InsightRequest, InsightResponse, ErrorResponse } from './types';
 import { upstreamFetch, UpstreamTimeoutError } from './utils';
 
-const GEMINI_TIMEOUT_MS = 8000; // 8 seconds (RF-BE-01, Appendix F)
+const DEEPSEEK_TIMEOUT_MS = 8000; // 8 seconds (RF-BE-01, Appendix F)
+const DEEPSEEK_CHAT_URL = 'https://api.deepseek.com/chat/completions';
+const DEFAULT_DEEPSEEK_MODEL = 'deepseek-flash';
 const MAX_INSIGHT_CHARS = 140;
 export const FALLBACK_INSIGHT = 'Sesión completada satisfactoriamente.';
 
@@ -66,51 +68,45 @@ export async function handleInsights(request: Request, env: Env): Promise<Respon
     restLatencySeconds !== null ? `${restLatencySeconds} segundos` : 'No registrada'
   }, Resultado: ${outcome}.`;
 
-  const geminiPayload = {
-    systemInstruction: {
-      parts: [{ text: SYSTEM_PROMPT }],
-    },
-    contents: [
-      {
-        parts: [{ text: userText }],
-      },
+  // OpenAI-compatible Chat Completions body (api-docs.deepseek.com, "Create Chat Completion")
+  const deepseekPayload = {
+    model: env.DEEPSEEK_MODEL || DEFAULT_DEEPSEEK_MODEL,
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: userText },
     ],
-    generationConfig: {
-      // Thinking tokens count against maxOutputTokens, so leave headroom above the ~140 char answer
-      maxOutputTokens: 256,
-      temperature: 0.7,
-      // Gemini 3 models take thinkingLevel (not thinkingBudget); "minimal" is the lowest level
-      // supported by 3.1 Flash-Lite, keeping latency low and the visible answer non-empty.
-      thinkingConfig: { thinkingLevel: 'minimal' },
-    },
+    // Thinking is on by default for deepseek-flash; disabling it keeps latency under the 8 s
+    // budget and makes temperature effective (it is ignored in thinking mode).
+    thinking: { type: 'disabled' },
+    // ~140 Spanish characters fit in well under 120 tokens; low ceiling bounds the cost per call
+    max_tokens: 120,
+    temperature: 0.3,
   };
-
-  const model = env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-    model
-  )}:generateContent`;
 
   try {
     const upstreamRes = await upstreamFetch(
-      url,
+      DEEPSEEK_CHAT_URL,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-goog-api-key': env.GEMINI_API_KEY,
+          Authorization: `Bearer ${env.DEEPSEEK_API_KEY}`,
         },
-        body: JSON.stringify(geminiPayload),
+        body: JSON.stringify(deepseekPayload),
       },
-      GEMINI_TIMEOUT_MS
+      DEEPSEEK_TIMEOUT_MS
     );
 
     if (!upstreamRes.ok) {
-      return jsonError('upstream_error', `Gemini API error: ${upstreamRes.status}`, 502);
+      // Only the upstream status code is logged: never the body, which may echo request data (RNF-BE-02)
+      console.warn(`[WakeSyncGateway] DeepSeek upstream status=${upstreamRes.status}`);
+      return jsonError('upstream_error', `DeepSeek API error: ${upstreamRes.status}`, 502);
     }
 
     const data: any = await upstreamRes.json();
-    const candidate = data.candidates?.[0];
-    const rawInsight: string = candidate?.content?.parts?.[0]?.text || '';
+    const choice = data.choices?.[0];
+    // Only the final answer is used; reasoning_content (thinking mode) is never read
+    const rawInsight: string = typeof choice?.message?.content === 'string' ? choice.message.content : '';
 
     // Sanitization: strip markdown, newlines, and trim
     let cleanInsight = rawInsight
@@ -126,8 +122,8 @@ export async function handleInsights(request: Request, env: Env): Promise<Respon
     if (!cleanInsight) {
       // Surface the silent fallback without logging any model content (RNF-BE-02)
       console.warn(
-        `[WakeSyncGateway] Empty Gemini insight, using fallback text (finishReason=${
-          candidate?.finishReason ?? 'UNKNOWN'
+        `[WakeSyncGateway] Empty DeepSeek insight, using fallback text (finish_reason=${
+          choice?.finish_reason ?? 'UNKNOWN'
         })`
       );
       cleanInsight = FALLBACK_INSIGHT;
@@ -140,9 +136,9 @@ export async function handleInsights(request: Request, env: Env): Promise<Respon
     });
   } catch (err: unknown) {
     if (err instanceof UpstreamTimeoutError) {
-      return jsonError('upstream_timeout', 'Gemini API timed out', 504);
+      return jsonError('upstream_timeout', 'DeepSeek API timed out', 504);
     }
-    return jsonError('upstream_error', 'Gemini API request failed', 502);
+    return jsonError('upstream_error', 'DeepSeek API request failed', 502);
   }
 }
 
