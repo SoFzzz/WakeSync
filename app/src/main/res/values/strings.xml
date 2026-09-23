@@ -79,10 +79,34 @@
     <string name="settings_simulation_desc">Usa datos sintéticos para evaluación</string>
     <string name="settings_app_info">WakeSync Wear OS v1.0.0</string>
 
-    <!-- Predefined Destinations -->
-    <string name="dest_campus_ucc">Campus UCC</string>
-    <string name="dest_estacion_metro">Estación Metro</string>
-    <string name="dest_casa">Casa</string>
-    <string name="dest_none">Sin Destino</string>
-    <string name="select_destination_title">Seleccionar Destino</string>
+    <!-- Destination Picker: Buscar Destino (CR-01, RF-PLC-01/02) -->
+    <string name="title_dest_search">Buscar Destino</string>
+    <string name="dest_search_hint">Escribe o dicta un destino</string>
+    <string name="btn_search">Buscar Destino</string>
+    <string name="btn_choose_on_map">Elegir en Mapa</string>
+    <string name="dest_search_min_chars_hint">Escribe al menos 3 caracteres</string>
+    <string name="dest_search_no_results">Sin resultados</string>
+    <string name="transit_select_destination_prompt">Elige tu destino</string>
+
+    <!-- Destination Picker: Mapa de Destino (CR-01, RF-PLC-03) -->
+    <string name="title_dest_map">Mapa de Destino</string>
+    <string name="btn_pin_destination">Fijar Destino</string>
+
+    <!-- Destination Picker: Confirmar Destino (CR-01, RF-PLC-04) -->
+    <string name="title_dest_confirm">Confirmar Destino</string>
+    <string name="dest_confirm_unnamed">Destino sin nombre</string>
+    <string name="dest_confirm_distance_format">%1$s en línea recta</string>
+
+    <!-- Destination Picker: Sin conexión / Error (CR-01, RF-PLC-05) -->
+    <string name="dest_offline_msg">Sin conexión. Revisa tu red e intenta de nuevo.</string>
+    <string name="btn_retry">Reintentar</string>
+
+    <!-- Resumen Post-Sesión con Insight (CR-01, RF-INS-02 a 04) -->
+    <string name="title_session_summary">Resumen de Sesión</string>
+    <string name="insight_loading">Generando resumen…</string>
+    <string name="insight_unavailable">Resumen no disponible sin conexión</string>
+    <string name="btn_back_to_home">Volver a Inicio</string>
+    <string name="session_outcome_completed">Completada</string>
+    <string name="session_outcome_timed_out">Tiempo Agotado</string>
+    <string name="session_outcome_cancelled">Cancelada</string>
 </resources>
