@@ -4,6 +4,7 @@ import com.wakesync.ai.RestEstimatorEngine
 import com.wakesync.core.model.GeoPoint
 import com.wakesync.core.model.RestState
 import com.wakesync.sensors.mock.MockSensorEngine
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -29,11 +30,12 @@ class MockSensorEngineTest {
             mockSensorEngine.startNapSimulation(this, durationSeconds = 60, baseHr = 75)
             testScheduler.runCurrent()
 
-            // Initial emission should be start parameters
+            // Initial emission should be start parameters. Motion is already "resting" from the
+            // moment the simulation starts (F18): only HR ramps, SVM is constant quietude throughout.
             val initialHr = mockSensorEngine.getHeartRate().first()
             val initialSvm = mockSensorEngine.getMotionSvm().first()
             assertEquals(MockSensorEngine.NAP_START_HR, initialHr)
-            assertEquals(MockSensorEngine.NAP_START_SVM, initialSvm, 0.01f)
+            assertEquals(MockSensorEngine.NAP_TARGET_SVM, initialSvm, 0.01f)
 
             // Advance time to completion of nap descent
             testScheduler.advanceTimeBy(61_000L)
@@ -66,6 +68,57 @@ class MockSensorEngineTest {
             assertEquals(RestState.DEEP_REST, eval2.state)
         } finally {
             // Stop background simulation to prevent UncompletedCoroutinesError
+            mockSensorEngine.stopSimulation()
+        }
+    }
+
+    @Test
+    fun `nap simulation holds HR at baseHr until awaitRampStart resolves, then ramps`() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val mockSensorEngine = MockSensorEngine(dispatcher = testDispatcher)
+        val rampGate = CompletableDeferred<Unit>()
+
+        try {
+            mockSensorEngine.startNapSimulation(
+                this,
+                durationSeconds = 10,
+                baseHr = 75,
+                awaitRampStart = { rampGate.await() }
+            )
+            testScheduler.runCurrent()
+
+            // F18: while the gate is closed (e.g. NapManager's calibration window is still open),
+            // HR must stay flat at baseHr, not ramp — even well past the 10s ramp duration.
+            testScheduler.advanceTimeBy(15_000L)
+            testScheduler.runCurrent()
+            assertEquals(75, mockSensorEngine.getHeartRate().first())
+
+            // Once the gate opens, the ramp starts from baseHr with no discontinuity.
+            rampGate.complete(Unit)
+            testScheduler.runCurrent()
+            testScheduler.advanceTimeBy(11_000L)
+            testScheduler.runCurrent()
+            assertEquals(MockSensorEngine.NAP_TARGET_HR, mockSensorEngine.getHeartRate().first())
+        } finally {
+            mockSensorEngine.stopSimulation()
+        }
+    }
+
+    @Test
+    fun `nap simulation ramps immediately when awaitRampStart condition already holds`() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val mockSensorEngine = MockSensorEngine(dispatcher = testDispatcher)
+
+        try {
+            // A no-op awaitRampStart (the default) resolves instantly, matching the case where
+            // [Simular] is tapped after calibration has already ended.
+            mockSensorEngine.startNapSimulation(this, durationSeconds = 10, baseHr = 75)
+            testScheduler.runCurrent()
+
+            testScheduler.advanceTimeBy(11_000L)
+            testScheduler.runCurrent()
+            assertEquals(MockSensorEngine.NAP_TARGET_HR, mockSensorEngine.getHeartRate().first())
+        } finally {
             mockSensorEngine.stopSimulation()
         }
     }

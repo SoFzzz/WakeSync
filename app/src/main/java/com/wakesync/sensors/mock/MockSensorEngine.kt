@@ -25,8 +25,10 @@ class MockSensorEngine(
     companion object {
         // Nap simulation parameters
         const val NAP_START_HR: Int = 75
-        const val NAP_TARGET_HR: Int = 58
-        const val NAP_START_SVM: Float = 1.8f
+        // With the calibration-aware hold in startNapSimulation (F18/B2a), the calibrated base HR
+        // is always ~75 (NAP_START_HR), so the steady-state score_reposo is a comfortable
+        // 0.5*(75-52)/75 + 0.492 ≈ 0.65 — well above the 0.60 DEEP_REST threshold.
+        const val NAP_TARGET_HR: Int = 52
         const val NAP_TARGET_SVM: Float = 0.04f
 
         // Route simulation parameters
@@ -49,41 +51,46 @@ class MockSensorEngine(
 
     /**
      * Starts deterministic [Simulate Nap] mode:
-     * - Interpolates HR: 75 -> 58 BPM.
-     * - Interpolates SVM: 1.8 -> 0.04 m/s².
+     * - Holds HR at [baseHr] and SVM at resting quietude ([NAP_TARGET_SVM]) until
+     *   [awaitRampStart] resolves, so a real-time-shortened ramp (B2a) can never bleed into
+     *   NapManager's calibration window and pull the calibrated base HR down (F18).
+     * - Once [awaitRampStart] resolves (immediately if the caller's condition already holds),
+     *   interpolates HR: [baseHr] -> [NAP_TARGET_HR] over [durationSeconds].
      * Ensures RestEstimatorEngine sustains score >= 0.60 for >= 2 cycles to achieve DEEP_REST.
      */
     fun startNapSimulation(
         scope: CoroutineScope,
         durationSeconds: Int = 60,
-        baseHr: Int = NAP_START_HR
+        baseHr: Int = NAP_START_HR,
+        awaitRampStart: suspend () -> Unit = {}
     ) {
         stopSimulation()
         activeSimulationJob = scope.launch(dispatcher) {
             val totalSteps = durationSeconds
             val hrDelta = (NAP_TARGET_HR - baseHr).toFloat()
-            val svmDelta = (NAP_TARGET_SVM - NAP_START_SVM)
 
-            // High frequency motion generation (20 Hz -> 50ms interval)
+            // Motion is already "resting" the moment the user lies down: constant at target
+            // quietude for the whole simulation, independent of the HR hold/ramp below.
             val motionJob = launch {
-                var step = 0
                 val motionIntervalMs = 50L
-                val totalMotionSteps = durationSeconds * 20
-                while (isActive && step <= totalMotionSteps) {
-                    val progress = (step.toFloat() / totalMotionSteps).coerceIn(0.0f, 1.0f)
-                    val currentSvm = NAP_START_SVM + (svmDelta * progress)
-                    svmFlow.emit(currentSvm)
-                    delay(motionIntervalMs)
-                    step++
-                }
-                // Once finished, maintain quietude
                 while (isActive) {
                     svmFlow.emit(NAP_TARGET_SVM)
                     delay(motionIntervalMs)
                 }
             }
 
-            // 1 Hz heart rate emission
+            // Hold HR at baseHr while the caller's calibration window is still open.
+            val holdJob = launch {
+                while (isActive) {
+                    hrFlow.emit(baseHr)
+                    delay(1000L)
+                }
+            }
+            awaitRampStart()
+            holdJob.cancel()
+
+            // 1 Hz heart rate ramp down to the target, starting from baseHr (same value the hold
+            // just held, so there is no discontinuity at the handoff).
             var second = 0
             while (isActive && second <= totalSteps) {
                 val progress = (second.toFloat() / totalSteps).coerceIn(0.0f, 1.0f)

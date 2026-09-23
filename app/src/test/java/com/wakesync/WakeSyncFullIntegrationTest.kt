@@ -104,7 +104,7 @@ class WakeSyncFullIntegrationTest {
         // Start rest evaluation engine
         restEngine.start(testScope)
 
-        // Start mock nap simulation: HR 75 -> 58 BPM, SVM 1.8 -> 0.04 m/s² over 60s
+        // Start mock nap simulation: HR 75 -> 52 BPM, SVM 1.8 -> 0.04 m/s² over 60s
         mockSensorEngine.startNapSimulation(testScope, durationSeconds = 60, baseHr = 75)
 
         // Advance 105s (60s ramp to deep rest + 20s for window stabilization + 2 evaluation cycles of 10s)
@@ -125,8 +125,12 @@ class WakeSyncFullIntegrationTest {
         // Advance 60s into countdown: remaining seconds decrement accurately
         advanceTimeBy(60_000L)
         runCurrent()
+        // F18: NAP_TARGET_HR=52 (was 58) weights deltaHr more heavily, and motion is now constant
+        // quietude from t=0 instead of ramping (the hold-then-ramp fix only changes HR), so the
+        // windowed mean score crosses 0.60 earlier in the ramp and REST_CONFIRMED lands sooner
+        // (observed remaining=795; was 820..845 before NAP_TARGET_HR=52, 805..825 right after).
         val remaining = sessionManager.state.value.napState.remainingNapSeconds
-        assertTrue("Remaining nap seconds ($remaining) should be decremented from 900", remaining in 820..845)
+        assertTrue("Remaining nap seconds ($remaining) should be decremented from 900", remaining in 785..805)
 
         napManager.stopSession()
         mockSensorEngine.stopSimulation()

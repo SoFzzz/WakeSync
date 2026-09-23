@@ -119,6 +119,27 @@ class RestEstimatorEngineTest {
     }
 
     @Test
+    fun `steady-state mock nap score clears DEEP_REST threshold for the realistic calibration range`() {
+        // F18: a calibration that races MockSensorEngine's activation can land below the
+        // NAP_START_HR of 75 (seen as low as 71 BPM). NAP_TARGET_HR (52) and NAP_TARGET_SVM must
+        // keep score_reposo >= 0.60 for any base HR in that realistic range, or DEEP_REST becomes
+        // permanently unreachable once HR/SVM settle at their steady-state floor. The exact floor is
+        // 67 BPM (score 0.6039); 66 falls just short (0.5981) and is deliberately excluded here.
+        listOf(67, 71, 75).forEach { baseHr ->
+            val result = engine.calculateScoreAndState(
+                baseHr = baseHr,
+                currentHr = MockSensorEngine.NAP_TARGET_HR,
+                meanSvm = MockSensorEngine.NAP_TARGET_SVM,
+                previousDeepRestCount = 0
+            )
+            assertTrue(
+                "Steady-state score for baseHr=$baseHr must be >= 0.60: actual=${result.score}",
+                result.score >= 0.60f
+            )
+        }
+    }
+
+    @Test
     fun `physiological bounds enforce invalid data when HR is outside 35 to 220 BPM`() {
         val lowHr = engine.calculateScoreAndState(
             baseHr = 70,

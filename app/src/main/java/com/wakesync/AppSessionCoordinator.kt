@@ -24,6 +24,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 import com.wakesync.core.session.SimulationControllerContract
@@ -84,6 +87,7 @@ class AppSessionCoordinator(
 
     private var sessionObserverJob: Job? = null
     private var biometricsRelayJob: Job? = null
+    private var simulationModeRelayJob: Job? = null
     private var currentActiveType: SessionType = SessionType.NONE
 
     fun start() {
@@ -92,8 +96,26 @@ class AppSessionCoordinator(
         sessionManager.registerAlertController(hapticController)
         sessionManager.registerSimulationController(this)
 
+        startSimulationModeRelay()
         startBiometricsRelay()
         startSessionObserver()
+    }
+
+    /**
+     * F9: sessionManager.state.isSimulated (toggled by the Settings switch and by
+     * startSimulateNap/startSimulateRoute below) is the single source of truth for whether
+     * sensorRepository should read from MockSensorEngine or RealSensorSource. Without this relay,
+     * sensorRepository's own flag was only ever set to true and never back to false, so any
+     * session after the first simulation — even a real, non-simulated one — kept reading mock
+     * data regardless of the Settings toggle.
+     */
+    private fun startSimulationModeRelay() {
+        simulationModeRelayJob?.cancel()
+        simulationModeRelayJob = scope.launch {
+            sessionManager.state.map { it.isSimulated }.distinctUntilChanged().collect { isSimulated ->
+                sensorRepository.setSimulated(isSimulated)
+            }
+        }
     }
 
     private fun startBiometricsRelay() {
@@ -189,9 +211,16 @@ class AppSessionCoordinator(
     override fun startSimulateNap() {
         Log.i(TAG, "Simulate Nap triggered: activating MockSensorEngine")
         sessionManager.setSimulationMode(true)
-        sensorRepository.setSimulated(true)
-        // 10 s ramp so DEEP_REST is reachable within the 30 s acceptance window (Section 9)
-        mockSensorEngine.startNapSimulation(scope, durationSeconds = 10, baseHr = 75)
+        // 10 s ramp so DEEP_REST is reachable within the 30 s acceptance window (Section 9).
+        // The ramp itself only starts once NapManager's calibration window has closed (or
+        // immediately, if it already had) — otherwise a 10 s ramp finishes inside the 20 s
+        // calibration window and drags the calibrated base HR down with it (F18/B2a).
+        mockSensorEngine.startNapSimulation(
+            scope,
+            durationSeconds = 10,
+            baseHr = 75,
+            awaitRampStart = { sessionManager.state.first { it.napState.phase != NapPhase.CALIBRATING } }
+        )
     }
 
     /**
@@ -206,7 +235,6 @@ class AppSessionCoordinator(
         }
         Log.i(TAG, "Simulate Route triggered: activating MockSensorEngine")
         sessionManager.setSimulationMode(true)
-        sensorRepository.setSimulated(true)
         mockSensorEngine.startRouteSimulation(scope, target, durationSeconds = 60)
     }
 }
