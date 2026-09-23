@@ -76,15 +76,16 @@ export async function handleInsights(request: Request, env: Env): Promise<Respon
       },
     ],
     generationConfig: {
-      maxOutputTokens: 100,
+      // Thinking tokens count against maxOutputTokens, so leave headroom above the ~140 char answer
+      maxOutputTokens: 256,
       temperature: 0.7,
-      // Gemini 2.5 "thinking" tokens count against maxOutputTokens; without disabling it the
-      // budget can be spent on thinking and the visible answer comes back empty.
-      thinkingConfig: { thinkingBudget: 0 },
+      // Gemini 3 models take thinkingLevel (not thinkingBudget); "minimal" is the lowest level
+      // supported by 3.1 Flash-Lite, keeping latency low and the visible answer non-empty.
+      thinkingConfig: { thinkingLevel: 'minimal' },
     },
   };
 
-  const model = env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const model = env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
     model
   )}:generateContent`;

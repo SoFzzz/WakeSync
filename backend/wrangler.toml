@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 # Variables públicas / no secretas (disponibles en el entorno 'env')
 [vars]
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.1-flash-lite"
 
 # NOTA DE SEGURIDAD (RNF-BE-02 / Apéndice F del SRS):
 # Los siguientes secretos NUNCA van en este archivo ni en el repositorio Git.

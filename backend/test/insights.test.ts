@@ -5,7 +5,7 @@ import { resetRateLimits } from '../src/utils';
 import { FALLBACK_INSIGHT } from '../src/insights';
 
 const mockEnv: Env = {
-  GEMINI_MODEL: 'gemini-2.5-flash',
+  GEMINI_MODEL: 'gemini-3.1-flash-lite',
   MAPBOX_ACCESS_TOKEN: 'test-mapbox-token',
   GEMINI_API_KEY: 'test-gemini-key',
   APP_TOKEN: 'correct-secret-token-32bytes',
@@ -168,7 +168,19 @@ describe('WakeSync Gateway - AI Insights with Gemini', () => {
     });
   }
 
-  it('POST /v1/insights calls gemini-2.5-flash with thinking disabled', async () => {
+  it('POST /v1/insights falls back to gemini-3.1-flash-lite when GEMINI_MODEL is not set', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'Buen viaje.' }] } }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+
+    await worker.fetch(insightRequest(), { ...mockEnv, GEMINI_MODEL: '' });
+    expect(String(fetchSpy.mock.calls[0][0])).toContain('/models/gemini-3.1-flash-lite:generateContent');
+  });
+
+  it('POST /v1/insights calls gemini-3.1-flash-lite with minimal thinking and 256 output tokens', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'Buen viaje.' }] } }] }), {
         status: 200,
@@ -180,9 +192,10 @@ describe('WakeSync Gateway - AI Insights with Gemini', () => {
     expect(res.status).toBe(200);
 
     const [calledUrl, init] = fetchSpy.mock.calls[0];
-    expect(String(calledUrl)).toContain('/models/gemini-2.5-flash:generateContent');
+    expect(String(calledUrl)).toContain('/models/gemini-3.1-flash-lite:generateContent');
     const sentBody = JSON.parse(String((init as RequestInit).body));
-    expect(sentBody.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
+    expect(sentBody.generationConfig.thinkingConfig).toEqual({ thinkingLevel: 'minimal' });
+    expect(sentBody.generationConfig.maxOutputTokens).toBe(256);
   });
 
   it('POST /v1/insights logs finishReason without content and falls back when Gemini text is empty', async () => {

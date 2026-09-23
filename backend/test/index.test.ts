@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import worker from '../src/index';
 import { Env } from '../src/types';
-import { resetRateLimits } from '../src/utils';
+import { resetRateLimits, toLogPath } from '../src/utils';
 
 const mockEnv: Env = {
-  GEMINI_MODEL: 'gemini-2.5-flash',
+  GEMINI_MODEL: 'gemini-3.1-flash-lite',
   MAPBOX_ACCESS_TOKEN: 'test-mapbox-token',
   GEMINI_API_KEY: 'test-gemini-key',
   APP_TOKEN: 'correct-secret-token-32bytes',
@@ -75,6 +75,35 @@ describe('WakeSync Gateway - Router, Auth and Rate Limiting', () => {
     delete missingSecretEnv.APP_TOKEN;
     const res = await worker.fetch(new Request('http://localhost/v1/unknown'), missingSecretEnv as Env);
     expect(res.status).toBe(401);
+  });
+
+  it('Logs /v1/places/{placeId} as a route template, never the place identifier', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          features: [{ geometry: { coordinates: [-75.568, 6.248] }, properties: { name: 'UCC' } }],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const req = new Request('http://localhost/v1/places/dXJuOm1ieHBvaTpzZWNyZXQ?sessionToken=uuid-123', {
+      method: 'GET',
+      headers: { 'X-WakeSync-App-Token': mockEnv.APP_TOKEN },
+    });
+    const res = await worker.fetch(req, mockEnv);
+    expect(res.status).toBe(200);
+
+    const logged = logSpy.mock.calls.map((c) => String(c[0])).join(' | ');
+    expect(logged).toContain('GET /v1/places/{placeId} - 200');
+    expect(logged).not.toContain('dXJuOm1ieHBvaTpzZWNyZXQ');
+    expect(logged).not.toContain('uuid-123');
+  });
+
+  it('toLogPath keeps autocomplete and strips query strings', () => {
+    expect(toLogPath('/v1/places/autocomplete')).toBe('/v1/places/autocomplete');
+    expect(toLogPath('/v1/geocode/reverse?lat=6.25&lng=-75.56')).toBe('/v1/geocode/reverse');
   });
 
   it('Should enforce 60 requests/minute per client IP (RF-BE-04)', async () => {
