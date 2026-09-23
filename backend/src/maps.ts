@@ -1,10 +1,25 @@
 import { Env, ErrorResponse } from './types';
-import { upstreamFetch, UpstreamTimeoutError } from './utils';
+import { upstreamFetch, UpstreamTimeoutError, UPSTREAM_TIMEOUT_MS, MAPBOX_API_BASE } from './utils';
 
-const GOOGLE_TIMEOUT_MS = 4000; // 4 seconds (RF-BE-01, Appendix F)
+const MAPBOX_STYLE_PATH = 'mapbox/streets-v12';
+
+/**
+ * Converts the watch's zoom level to the Mapbox Static Images API zoom level.
+ *
+ * The watch (WebMercatorProjection, TILE_SIZE = 256) computes pan/tap math assuming a
+ * 256 px world tile, where the world is 256 * 2^zoom logical px wide. Mapbox renders with
+ * 512 px tiles, so its world is 512 * 2^zoom logical px wide. Requesting `zoom - 1` makes
+ * both worlds the same size, so one logical px of the image matches one logical px of the
+ * watch's projection.
+ */
+export function toMapboxZoom(appZoom: number): number {
+  return appZoom - 1;
+}
 
 /**
  * Handler for GET /v1/maps/static?lat=...&lng=...&zoom=...&size=... (RF-PLC-03, Appendix F.3).
+ *
+ * Adapts the request to the Mapbox Static Images API (vector style, returns PNG).
  */
 export async function handleMapsStatic(
   latStr: string | null,
@@ -37,17 +52,24 @@ export async function handleMapsStatic(
     return jsonError('invalid_request', 'size must be an integer between 100 and 320', 400);
   }
 
-  // Google Maps Static API request: scale=2 gives high-DPI (logical px * 2 = physical px)
-  // No markers requested: the Wear OS app renders its own stationary center pin overlay
-  const url = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=${size}x${size}&scale=2&maptype=roadmap&language=es&key=${encodeURIComponent(
-    env.GOOGLE_MAPS_API_KEY
-  )}`;
+  // Mapbox Static Images API: @2x gives high-DPI (logical px * 2 = physical px), matching the
+  // watch's MAP_SCALE = 2. No markers requested: the watch draws its own stationary center pin.
+  // Logo and attribution are drawn by the watch UI outside the image (RNF-PLC-03).
+  // Mapbox expects "longitude,latitude" in the path.
+  const params = new URLSearchParams({
+    attribution: 'false',
+    logo: 'false',
+    access_token: env.MAPBOX_ACCESS_TOKEN,
+  });
+  const url =
+    `${MAPBOX_API_BASE}/styles/v1/${MAPBOX_STYLE_PATH}/static/` +
+    `${lng},${lat},${toMapboxZoom(zoom)},0/${size}x${size}@2x?${params.toString()}`;
 
   try {
-    const upstreamRes = await upstreamFetch(url, { method: 'GET' }, GOOGLE_TIMEOUT_MS);
+    const upstreamRes = await upstreamFetch(url, { method: 'GET' }, UPSTREAM_TIMEOUT_MS);
 
     if (!upstreamRes.ok) {
-      return jsonError('upstream_error', `Maps Static API error: ${upstreamRes.status}`, 502);
+      return jsonError('upstream_error', `Static map error: ${upstreamRes.status}`, 502);
     }
 
     const imageBytes = await upstreamRes.arrayBuffer();
@@ -59,11 +81,11 @@ export async function handleMapsStatic(
         'Cache-Control': 'public, max-age=3600',
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof UpstreamTimeoutError) {
-      return jsonError('upstream_timeout', 'Google Maps Static API timed out', 504);
+      return jsonError('upstream_timeout', 'Static map timed out', 504);
     }
-    return jsonError('upstream_error', err.message || 'Unknown upstream error', 502);
+    return jsonError('upstream_error', 'Static map request failed', 502);
   }
 }
 

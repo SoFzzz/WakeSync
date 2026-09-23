@@ -6,6 +6,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
@@ -22,6 +23,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -40,8 +42,22 @@ import com.wakesync.ui.theme.WakeSyncColors
  */
 private val MAP_IMAGE_SIZE_DP = 227.dp
 
-/** Keeps floating controls clear of Google's logo/attribution baked into the image's bottom edge (RNF-PLC-03). */
+/**
+ * Keeps the pin button above the map attribution line drawn at the bottom of the round screen
+ * (RNF-PLC-03). The backend requests the image without logo/attribution because the square
+ * image's corners are clipped by the round display, so the app draws the attribution itself.
+ */
 private val BOTTOM_SAFE_ZONE_DP = 30.dp
+
+/** Bottom inset of the attribution line; at this height the 454x454 circle is still ~110dp wide. */
+private val ATTRIBUTION_BOTTOM_PADDING_DP = 9.dp
+
+/**
+ * Mapbox logo height: brand guidelines require at least 30 px, i.e. 15dp on the 454x454
+ * reference device. Drawn at the top center, where the circle is still ~93dp wide.
+ */
+private val MAPBOX_LOGO_HEIGHT_DP = 15.dp
+private val MAPBOX_LOGO_TOP_PADDING_DP = 12.dp
 
 /**
  * Mapa de Destino (CR-01, RF-PLC-03).
@@ -115,6 +131,31 @@ fun DestinationMapScreen(
             modifier = Modifier
                 .size(14.dp)
                 .background(WakeSyncColors.GreenTransit, CircleShape)
+        )
+
+        // Required Mapbox logo (official black wordmark + icon, on a light backing), always visible.
+        Image(
+            painter = painterResource(R.drawable.mapbox_logo),
+            contentDescription = stringResource(R.string.map_logo_description),
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = MAPBOX_LOGO_TOP_PADDING_DP)
+                .background(WakeSyncColors.White.copy(alpha = 0.8f), CircleShape)
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+                .height(MAPBOX_LOGO_HEIGHT_DP)
+        )
+
+        // Required map data attribution (Mapbox / OpenStreetMap), always visible, even in ambient.
+        Text(
+            text = stringResource(R.string.map_attribution),
+            fontSize = 8.sp,
+            color = WakeSyncColors.White,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = ATTRIBUTION_BOTTOM_PADDING_DP)
+                .background(WakeSyncColors.PureBlack.copy(alpha = 0.6f), CircleShape)
+                .padding(horizontal = 4.dp)
         )
 
         if (!isAmbient) {

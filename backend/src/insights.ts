@@ -3,6 +3,7 @@ import { upstreamFetch, UpstreamTimeoutError } from './utils';
 
 const GEMINI_TIMEOUT_MS = 8000; // 8 seconds (RF-BE-01, Appendix F)
 const MAX_INSIGHT_CHARS = 140;
+export const FALLBACK_INSIGHT = 'Sesión completada satisfactoriamente.';
 
 const SYSTEM_PROMPT =
   'Eres el asistente de bienestar de WakeSync, una app de smartwatch. Recibes el resumen agregado de una sesión de siesta (NAP) o de viaje en transporte (TRANSIT). Responde en español con una sola frase amable y práctica de máximo 140 caracteres. No des diagnósticos médicos ni menciones trastornos del sueño. No uses emojis ni formato markdown.';
@@ -77,10 +78,13 @@ export async function handleInsights(request: Request, env: Env): Promise<Respon
     generationConfig: {
       maxOutputTokens: 100,
       temperature: 0.7,
+      // Gemini 2.5 "thinking" tokens count against maxOutputTokens; without disabling it the
+      // budget can be spent on thinking and the visible answer comes back empty.
+      thinkingConfig: { thinkingBudget: 0 },
     },
   };
 
-  const model = env.GEMINI_MODEL || 'gemini-1.5-flash';
+  const model = env.GEMINI_MODEL || 'gemini-2.5-flash';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
     model
   )}:generateContent`;
@@ -100,12 +104,12 @@ export async function handleInsights(request: Request, env: Env): Promise<Respon
     );
 
     if (!upstreamRes.ok) {
-      const errText = await upstreamRes.text().catch(() => '');
-      return jsonError('upstream_error', `Gemini API error: ${upstreamRes.status} ${errText}`, 502);
+      return jsonError('upstream_error', `Gemini API error: ${upstreamRes.status}`, 502);
     }
 
     const data: any = await upstreamRes.json();
-    let rawInsight = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const candidate = data.candidates?.[0];
+    const rawInsight: string = candidate?.content?.parts?.[0]?.text || '';
 
     // Sanitization: strip markdown, newlines, and trim
     let cleanInsight = rawInsight
@@ -119,7 +123,13 @@ export async function handleInsights(request: Request, env: Env): Promise<Respon
     }
 
     if (!cleanInsight) {
-      cleanInsight = 'Sesión completada satisfactoriamente.';
+      // Surface the silent fallback without logging any model content (RNF-BE-02)
+      console.warn(
+        `[WakeSyncGateway] Empty Gemini insight, using fallback text (finishReason=${
+          candidate?.finishReason ?? 'UNKNOWN'
+        })`
+      );
+      cleanInsight = FALLBACK_INSIGHT;
     }
 
     const responseBody: InsightResponse = { insight: cleanInsight };
@@ -127,11 +137,11 @@ export async function handleInsights(request: Request, env: Env): Promise<Respon
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof UpstreamTimeoutError) {
       return jsonError('upstream_timeout', 'Gemini API timed out', 504);
     }
-    return jsonError('upstream_error', err.message || 'Unknown upstream error', 502);
+    return jsonError('upstream_error', 'Gemini API request failed', 502);
   }
 }
 

@@ -210,7 +210,11 @@ class DestinationSearchRepository(
 
     private fun fetchMapImage(center: GeoPoint, zoom: Int, immediate: Boolean) {
         mapDebounceJob?.cancel()
-        lastAction = { fetchMapImage(center, zoom, immediate = true) }
+        // A network failure replaces Map with Offline, so retry must restore the viewport first
+        lastAction = {
+            _state.value = DestinationPickerState.Map(center = center, zoom = zoom, image = null)
+            fetchMapImage(center, zoom, immediate = true)
+        }
 
         mapDebounceJob = scope.launch {
             if (!immediate) {

@@ -158,7 +158,30 @@ class DestinationSearchRepositoryTest {
     }
 
     @Test
-    fun `pinMapCenter uses reverse geocoding to populate Confirm state`() = testScope.runTest {
+    fun `retry after static map network failure restores Map with last center and zoom`() = testScope.runTest {
+        repository.openMap(userLocation)
+        advanceUntilIdle()
+
+        fakeBackendClient.staticMapResult = ApiResult.NetworkUnavailable
+        repository.zoomMap(1)
+        advanceUntilIdle()
+        assertEquals(DestinationPickerState.Offline, repository.state.value)
+
+        fakeBackendClient.staticMapResult = ApiResult.Success(byteArrayOf(137.toByte(), 80, 78, 71))
+        repository.retry()
+
+        val restored = repository.state.value
+        assertTrue(restored is DestinationPickerState.Map)
+        restored as DestinationPickerState.Map
+        assertEquals(userLocation, restored.center)
+        assertEquals(DestinationSearchRepository.MAP_DEFAULT_ZOOM + 1, restored.zoom)
+
+        advanceUntilIdle()
+        assertTrue(repository.state.value is DestinationPickerState.Map)
+    }
+
+    @Test
+    fun `pinMapCenter uses reverse geocoding to populate Confirm state`()= testScope.runTest {
         repository.openMap(userLocation)
         advanceUntilIdle()
 

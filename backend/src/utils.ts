@@ -3,8 +3,14 @@
  * - Constant-time token comparison (mitigating timing attacks)
  * - In-memory IP rate limiter (60 req/min)
  * - Sanitized request logging (method, path, status, latency only - RNF-BE-02)
- * - Upstream fetch with strict AbortController timeouts (4s Google / 8s Gemini)
+ * - Upstream fetch with strict AbortController timeouts (4s Mapbox / 8s Gemini)
  */
+
+/** Timeout for map provider calls (Mapbox Search Box, Geocoding and Static Images APIs). */
+export const UPSTREAM_TIMEOUT_MS = 4000;
+
+/** Base URL of the Mapbox REST APIs. */
+export const MAPBOX_API_BASE = 'https://api.mapbox.com';
 
 export class UpstreamTimeoutError extends Error {
   constructor(message = 'Upstream service timeout') {

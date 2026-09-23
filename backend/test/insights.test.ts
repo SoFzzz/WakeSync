@@ -2,10 +2,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import worker from '../src/index';
 import { Env } from '../src/types';
 import { resetRateLimits } from '../src/utils';
+import { FALLBACK_INSIGHT } from '../src/insights';
 
 const mockEnv: Env = {
-  GEMINI_MODEL: 'gemini-1.5-flash',
-  GOOGLE_MAPS_API_KEY: 'test-google-key',
+  GEMINI_MODEL: 'gemini-2.5-flash',
+  MAPBOX_ACCESS_TOKEN: 'test-mapbox-token',
   GEMINI_API_KEY: 'test-gemini-key',
   APP_TOKEN: 'correct-secret-token-32bytes',
 };
@@ -148,5 +149,84 @@ describe('WakeSync Gateway - AI Insights with Gemini', () => {
 
     const body: any = await res.json();
     expect(body.insight.length).toBeLessThanOrEqual(140);
+  });
+  const validTransitPayload = {
+    sessionType: 'TRANSIT',
+    durationSeconds: 600,
+    restLatencySeconds: null,
+    outcome: 'DISMISSED',
+  };
+
+  function insightRequest(): Request {
+    return new Request('http://localhost/v1/insights', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-WakeSync-App-Token': mockEnv.APP_TOKEN,
+      },
+      body: JSON.stringify(validTransitPayload),
+    });
+  }
+
+  it('POST /v1/insights calls gemini-2.5-flash with thinking disabled', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'Buen viaje.' }] } }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+
+    const res = await worker.fetch(insightRequest(), mockEnv);
+    expect(res.status).toBe(200);
+
+    const [calledUrl, init] = fetchSpy.mock.calls[0];
+    expect(String(calledUrl)).toContain('/models/gemini-2.5-flash:generateContent');
+    const sentBody = JSON.parse(String((init as RequestInit).body));
+    expect(sentBody.generationConfig.thinkingConfig).toEqual({ thinkingBudget: 0 });
+  });
+
+  it('POST /v1/insights logs finishReason without content and falls back when Gemini text is empty', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: '' }] }, finishReason: 'MAX_TOKENS' }] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const res = await worker.fetch(insightRequest(), mockEnv);
+    expect(res.status).toBe(200);
+
+    const body: any = await res.json();
+    expect(body.insight).toBe(FALLBACK_INSIGHT);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const logged = String(warnSpy.mock.calls[0][0]);
+    expect(logged).toContain('finishReason=MAX_TOKENS');
+    expect(logged).not.toContain('TRANSIT');
+    expect(logged).not.toContain('600');
+  });
+
+  it('POST /v1/insights falls back when Gemini returns no candidates', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify({}), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    );
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const res = await worker.fetch(insightRequest(), mockEnv);
+    const body: any = await res.json();
+    expect(body.insight).toBe(FALLBACK_INSIGHT);
+    expect(String(warnSpy.mock.calls[0][0])).toContain('finishReason=UNKNOWN');
+  });
+
+  it('POST /v1/insights does not echo the upstream error body', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response('{"error":{"message":"API key not valid secret-detail"}}', { status: 400 })
+    );
+
+    const res = await worker.fetch(insightRequest(), mockEnv);
+    expect(res.status).toBe(502);
+    const text = await res.text();
+    expect(text).toContain('400');
+    expect(text).not.toContain('secret-detail');
   });
 });

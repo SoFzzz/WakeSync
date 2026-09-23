@@ -85,7 +85,7 @@ class SessionManager(
      */
     fun requestStartSession(type: SessionType, destination: GeoPoint? = null): Boolean {
         val currentType = _state.value.sessionType
-        Log.d(TAG, "requestStartSession called: requested=$type, current=$currentType, destination=$destination")
+        Log.d(TAG, "requestStartSession called: requested=$type, current=$currentType, hasDestination=${destination != null}")
 
         // Idempotency: If already running this exact session type, return true without reinitializing
         if (currentType == type && type != SessionType.NONE) {
@@ -95,7 +95,7 @@ class SessionManager(
 
         if (currentType != SessionType.NONE) {
             Log.w(TAG, "Conflict detected: current session is $currentType, requested $type")
-            _state.update { it.copy(pendingConflict = SessionConflict(currentType, type)) }
+            _state.update { it.copy(pendingConflict = SessionConflict(currentType, type, destination)) }
             return false
         }
 
@@ -108,12 +108,12 @@ class SessionManager(
      */
     fun resolveConflict(proceedWithNew: Boolean) {
         val conflict = _state.value.pendingConflict ?: return
-        Log.d(TAG, "resolveConflict called: proceedWithNew=$proceedWithNew, conflict=$conflict")
+        Log.d(TAG, "resolveConflict called: proceedWithNew=$proceedWithNew, running=${conflict.runningSession}, requested=${conflict.requestedSession}")
         _state.update { it.copy(pendingConflict = null) }
 
         if (proceedWithNew) {
             endSession(SessionOutcome.CANCELLED)
-            startSessionInternal(conflict.requestedSession, null)
+            startSessionInternal(conflict.requestedSession, conflict.requestedDestination)
         }
     }
 

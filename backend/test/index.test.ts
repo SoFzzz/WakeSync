@@ -4,8 +4,8 @@ import { Env } from '../src/types';
 import { resetRateLimits } from '../src/utils';
 
 const mockEnv: Env = {
-  GEMINI_MODEL: 'gemini-1.5-flash',
-  GOOGLE_MAPS_API_KEY: 'test-google-key',
+  GEMINI_MODEL: 'gemini-2.5-flash',
+  MAPBOX_ACCESS_TOKEN: 'test-mapbox-token',
   GEMINI_API_KEY: 'test-gemini-key',
   APP_TOKEN: 'correct-secret-token-32bytes',
 };
@@ -57,6 +57,24 @@ describe('WakeSync Gateway - Router, Auth and Rate Limiting', () => {
 
     const body: any = await res.json();
     expect(body.error).toBe('unauthorized');
+  });
+
+  it('Protected route returns 401 when the APP_TOKEN secret is not configured (fail closed)', async () => {
+    const envWithoutToken: Env = { ...mockEnv, APP_TOKEN: '' };
+
+    for (const headers of [{}, { 'X-WakeSync-App-Token': '' }] as Record<string, string>[]) {
+      const req = new Request('http://localhost/v1/geocode/reverse?lat=6.25&lng=-75.56', {
+        method: 'GET',
+        headers,
+      });
+      const res = await worker.fetch(req, envWithoutToken);
+      expect(res.status).toBe(401);
+    }
+
+    const missingSecretEnv = { ...mockEnv } as Partial<Env>;
+    delete missingSecretEnv.APP_TOKEN;
+    const res = await worker.fetch(new Request('http://localhost/v1/unknown'), missingSecretEnv as Env);
+    expect(res.status).toBe(401);
   });
 
   it('Should enforce 60 requests/minute per client IP (RF-BE-04)', async () => {

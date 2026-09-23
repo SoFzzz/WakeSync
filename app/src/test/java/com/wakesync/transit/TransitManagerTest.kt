@@ -36,7 +36,7 @@ class TransitManagerTest {
     private lateinit var locationFlow: MutableSharedFlow<GeoPoint>
     private lateinit var transitManager: TransitManager
 
-    private val destination = TransitDestinations.CAMPUS_UCC
+    private val destination = GeoPoint(6.2518, -75.5684, "Test Destination")
 
     @Before
     fun setUp() {

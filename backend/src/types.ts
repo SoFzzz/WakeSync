@@ -14,7 +14,7 @@ export interface Env {
   // Secretos de Cloudflare (inyectados exclusivamente vía `wrangler secret put`,
   // NUNCA en wrangler.toml, NUNCA en el repositorio, NUNCA en el APK)
   // ---------------------------------------------------------------------------
-  GOOGLE_MAPS_API_KEY: string;
+  MAPBOX_ACCESS_TOKEN: string;
   GEMINI_API_KEY: string;
   APP_TOKEN: string;
 }

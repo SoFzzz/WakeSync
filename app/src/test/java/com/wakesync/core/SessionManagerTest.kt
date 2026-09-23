@@ -98,6 +98,20 @@ class SessionManagerTest {
     }
 
     @Test
+    fun resolveConflict_whenAccepted_keepsRequestedDestination() {
+        val destination = GeoPoint(6.2440, -75.5810, "Chosen Destination")
+        sessionManager.requestStartSession(SessionType.NAP)
+        sessionManager.requestStartSession(SessionType.TRANSIT, destination)
+
+        assertEquals(destination, sessionManager.state.value.pendingConflict?.requestedDestination)
+
+        sessionManager.resolveConflict(proceedWithNew = true)
+
+        assertEquals(SessionType.TRANSIT, sessionManager.state.value.sessionType)
+        assertEquals(destination, sessionManager.state.value.transitState.destination)
+    }
+
+    @Test
     fun endSession_resetsActiveModeAndUpdatesPhase() {
         sessionManager.requestStartSession(SessionType.NAP)
         sessionManager.endSession(SessionOutcome.COMPLETED)

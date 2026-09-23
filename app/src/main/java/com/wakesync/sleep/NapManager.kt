@@ -136,7 +136,7 @@ class NapManager(
             runNapLifecycle()
         }
 
-        Log.i(TAG, "Nap session started (destination=${destination?.name})")
+        Log.i(TAG, "Nap session started (hasDestination=${destination != null})")
     }
 
     private suspend fun CoroutineScope.runNapLifecycle() {

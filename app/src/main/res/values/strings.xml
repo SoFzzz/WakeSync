@@ -90,6 +90,8 @@
 
     <!-- Destination Picker: Mapa de Destino (CR-01, RF-PLC-03) -->
     <string name="title_dest_map">Mapa de Destino</string>
+    <string name="map_attribution" translatable="false">© Mapbox © OpenStreetMap</string>
+    <string name="map_logo_description">Logotipo de Mapbox</string>
     <string name="btn_pin_destination">Fijar Destino</string>
 
     <!-- Destination Picker: Confirmar Destino (CR-01, RF-PLC-04) -->
