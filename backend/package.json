@@ -1,0 +1,22 @@
+{
+  "name": "wakesync-gateway",
+  "version": "1.0.0",
+  "description": "Stateless backend gateway for WakeSync Wear OS smartwatch application",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "deploy": "wrangler deploy"
+  },
+  "keywords": ["wakesync", "wearos", "cloudflare-worker"],
+  "author": "WakeSync Team",
+  "license": "ISC",
+  "dependencies": {},
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.4.0",
+    "@cloudflare/workers-types": "^4.20240405.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.5.0",
+    "wrangler": "^3.50.0"
+  }
+}
