@@ -234,7 +234,7 @@ class RealSensorSource(
         }
 
         if (newIntervalMs != currentGpsIntervalMs) {
-            Log.i(TAG, "Adapting GPS interval: $currentGpsIntervalMs ms -> $newIntervalMs ms (dist: $distanceToDestinationMeters m)")
+            Log.i(TAG, "Adapting GPS interval: $currentGpsIntervalMs ms -> $newIntervalMs ms")
             currentGpsIntervalMs = newIntervalMs
             locationCallback?.let { callback ->
                 startLocationUpdates(newIntervalMs, callback)

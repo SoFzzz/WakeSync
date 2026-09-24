@@ -117,7 +117,7 @@ class TransitManager(
                 // Expected coroutine cancellation upon arrival or explicit session stop
             }
         }
-        Log.i(TAG, "Transit tracking session started towards ${destination.name ?: destination.latitude}")
+        Log.i(TAG, "Transit tracking session started (hasDestinationName=${destination.name != null})")
     }
 
     private fun updateSmoothedSpeed(currentLocation: GeoPoint, currentTimestampMs: Long) {

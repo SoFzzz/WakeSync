@@ -266,7 +266,7 @@ class SessionManager(
                 )
             )
         }
-        Log.d(TAG, "WakeSyncState transit phase changed to $phase (distance=${currentDistanceMeters}m, radius=${dynamicAlertRadiusMeters}m)")
+        Log.d(TAG, "WakeSyncState transit phase changed to $phase")
     }
 
     /**
