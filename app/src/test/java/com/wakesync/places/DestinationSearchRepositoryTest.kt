@@ -37,6 +37,8 @@ class DestinationSearchRepositoryTest {
             ReverseGeocodeDto("name", "addr")
         )
         var staticMapResult: ApiResult<ByteArray> = ApiResult.Success(byteArrayOf(1, 2, 3))
+        var lastStaticMapLat: Double? = null
+        var lastStaticMapLng: Double? = null
 
         override suspend fun autocomplete(
             query: String,
@@ -60,7 +62,11 @@ class DestinationSearchRepositoryTest {
             lng: Double,
             zoom: Int,
             size: Int
-        ): ApiResult<ByteArray> = staticMapResult
+        ): ApiResult<ByteArray> {
+            lastStaticMapLat = lat
+            lastStaticMapLng = lng
+            return staticMapResult
+        }
     }
 
     @Before
@@ -134,6 +140,41 @@ class DestinationSearchRepositoryTest {
         val state = repository.state.value
         assertTrue(state is DestinationPickerState.Map)
         assertEquals(userLocation, (state as DestinationPickerState.Map).center)
+    }
+
+    @Test
+    fun `openMap without explicit center rounds current location to 2 decimals (F23, RNF-PLC-02)`() = testScope.runTest {
+        val preciseLocation = GeoPoint(6.251837, -75.568412, "User Position")
+        val preciseRepository = DestinationSearchRepository(
+            backendClient = fakeBackendClient,
+            currentLocationProvider = { preciseLocation },
+            scope = testScope
+        )
+        val dummyPng = byteArrayOf(137.toByte(), 80, 78, 71)
+        fakeBackendClient.staticMapResult = ApiResult.Success(dummyPng)
+
+        preciseRepository.openMap(null)
+        advanceUntilIdle()
+
+        val state = preciseRepository.state.value
+        assertTrue(state is DestinationPickerState.Map)
+        assertEquals(6.25, (state as DestinationPickerState.Map).center.latitude, 0.0)
+        assertEquals(-75.57, state.center.longitude, 0.0)
+        assertEquals(6.25, fakeBackendClient.lastStaticMapLat)
+        assertEquals(-75.57, fakeBackendClient.lastStaticMapLng)
+    }
+
+    @Test
+    fun `openMap with explicit center is not rounded`() = testScope.runTest {
+        val explicitCenter = GeoPoint(6.251837, -75.568412, "Chosen point")
+        val dummyPng = byteArrayOf(137.toByte(), 80, 78, 71)
+        fakeBackendClient.staticMapResult = ApiResult.Success(dummyPng)
+
+        repository.openMap(explicitCenter)
+        advanceUntilIdle()
+
+        assertEquals(explicitCenter.latitude, fakeBackendClient.lastStaticMapLat)
+        assertEquals(explicitCenter.longitude, fakeBackendClient.lastStaticMapLng)
     }
 
     @Test

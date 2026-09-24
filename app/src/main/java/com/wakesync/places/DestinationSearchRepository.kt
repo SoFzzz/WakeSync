@@ -118,7 +118,14 @@ class DestinationSearchRepository(
     }
 
     override fun openMap(center: GeoPoint?) {
-        val initialCenter = center ?: currentLocationProvider() ?: DEFAULT_FALLBACK_CENTER
+        // Only the current-location fallback is rounded for privacy (RNF-PLC-02, F23);
+        // an explicit center (already user-chosen or panned) is left untouched.
+        val initialCenter = center ?: currentLocationProvider()?.let { loc ->
+            loc.copy(
+                latitude = round(loc.latitude * 100.0) / 100.0,
+                longitude = round(loc.longitude * 100.0) / 100.0
+            )
+        } ?: DEFAULT_FALLBACK_CENTER
         _state.value = DestinationPickerState.Map(
             center = initialCenter,
             zoom = MAP_DEFAULT_ZOOM,
