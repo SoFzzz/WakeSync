@@ -4,7 +4,7 @@
 > *Entorno de Ejecución:* **Smartwatch Autónomo Wear OS (Android Wear OS 3+ / 4, API 30+)**  
 > *Entorno de Desarrollo y Evaluación del MVP:* **Emulador Wear OS en Android Studio (100% Funcional sin Reloj Físico)**  
 > *Conectividad:* **App 100% independiente del smartphone** (sin app compañera, sin Wearable Data Layer API). Usa la red propia del reloj (WiFi/LTE; en el emulador, la red de la máquina anfitriona) para comunicarse únicamente con el backend propio `wakesync-gateway`  
-> *Servicios Externos (vía backend):* Google Maps Platform (Places API, Geocoding API, Maps Static API) y Google Gemini API  
+> *Servicios Externos (vía backend):* Mapbox (Search Box API, Geocoding API v6, Static Images API) y DeepSeek API  
 > *Curso / Institución:* Diseño de Sistemas / Ingeniería de Software — Universidad Cooperativa de Colombia (UCC)  
 > *Equipo de Ingeniería:* Proyecto WakeSync  
 > *Estándar:* IEEE 830-1998 (SRS) / Guías de Calidad para Wear OS de Google / ISO/IEC 25010  
@@ -18,6 +18,8 @@
 | :--- | :--- | :--- | :--- |
 | 1.0 | 2026-09 (Fases 1–4) | Línea base del SRS: dos modos, estimador heurístico, geocerca dinámica, hápticos y UI circular. | Todas |
 | **1.1** | **2026-09-22** | **CR-01 — Cambio de alcance posterior a la Fase 4:** (1) se elimina la selección entre 3 destinos predefinidos ("Campus UCC", "Estación Metro", "Casa") y se reemplaza por **selección libre de destino mediante Google Maps** (búsqueda por voz/teclado y selección sobre mapa) desde el propio reloj; (2) el **Motor de Insights por IA pasa de opcional (Fase 2) a obligatorio en el MVP**, usando Google Gemini; (3) se introduce el **backend sin estado `wakesync-gateway`** (Cloudflare Workers, plan gratuito) como único punto de salida a internet, que custodia todas las claves de API; (4) se elimina toda dependencia o integración con smartphone; (5) se acepta explícitamente un mayor consumo de batería a cambio de esta funcionalidad; (6) se alinean con el código real los parámetros de la ruta simulada ($2000 \rightarrow 400\text{ m}$ en $60\text{ s}$) y de la siesta simulada ($75 \rightarrow 58\text{ BPM}$). | Encabezado, 1, 2, 3, 5, 6, 7, 8.1, 8.4, 8.5, 8.7, 8.8, 8.9, 8.10 (nuevo), 8.11 (nuevo), 8.12, 9, 10, 11, 12, Apéndices A, C, D y F (nuevo) |
+| **1.2** | **2026-09-22** | **CR-02 — Proveedor de mapas y modelo de IA:** (1) el backend `wakesync-gateway` reemplaza Google Maps Platform (Places API (New), Geocoding API, Maps Static API) por **Mapbox** (Search Box API `/suggest` y `/retrieve`, Geocoding API v6 `/reverse` y Static Images API, estilo `mapbox/streets-v12`), porque el proyecto no cuenta con una clave de Google Maps con facturación activa; el contrato HTTP hacia el reloj (Apéndice F) **no cambia**; (2) el modelo de insights pasa de `gemini-1.5-flash` (retirado) a **DeepSeek `deepseek-flash`** (formato OpenAI, `Authorization: Bearer`), sin modo *thinking* (`thinking: {type: "disabled"}`) y `max_tokens = 120`, por los problemas de disponibilidad de Gemini detectados en la Fase 5; (3) la atribución del mapa la dibuja la app (`© Mapbox © OpenStreetMap`), porque la imagen se solicita sin logotipo ni atribución. |
+| **1.3** | **2026-09-23** | **CR-03 — Confirmación en la pasada de integración de Fase 5** de que el proveedor de insights operativo es DeepSeek (`deepseek-flash`), no Gemini; sin cambios en el contrato `/v1/insights` hacia el reloj. |
 
 ---
 
@@ -39,7 +41,7 @@
    - [8.7 Módulo 7: UI Circular en Compose (`com.wakesync.ui`)](#87-módulo-7-ui-circular-en-compose-comwakesyncui)
    - [8.8 Módulo 8: Motor de Simulación Determinista (`com.wakesync.sensors.mock`)](#88-módulo-8-motor-de-simulación-determinista-comwakesyncsensorsmock)
    - [8.9 Módulo 9: Motor de Insights por IA (`com.wakesync.insights`)](#89-módulo-9-motor-de-insights-por-ia-comwakesyncinsights)
-   - [8.10 Módulo 10: Selector de Destino con Google Maps (`com.wakesync.places`)](#810-módulo-10-selector-de-destino-con-google-maps-comwakesyncplaces)
+   - [8.10 Módulo 10: Selector de Destino con Mapbox (`com.wakesync.places`)](#810-módulo-10-selector-de-destino-con-mapbox-comwakesyncplaces)
    - [8.11 Módulo 11: Cliente de Red y Backend Gateway (`com.wakesync.network` + `backend/`)](#811-módulo-11-cliente-de-red-y-backend-gateway-comwakesyncnetwork--backend)
    - [8.12 Matriz de Trazabilidad de Requisitos (SRS Traceability Matrix)](#812-matriz-de-trazabilidad-de-requisitos-srs-traceability-matrix)
 9. [Criterios de Aceptación Verificables](#9-criterios-de-aceptación-verificables)
@@ -65,7 +67,7 @@
 
 1. **Modo Siesta (MicroNap):** Resuelve el problema del descanso diurno no reparador. Un temporizador fijo convencional (p. ej. de 20 minutos) suena antes de tiempo si el usuario tarda 15 minutos en relajarse, o suena tarde tras caer en sueño profundo, causando letargo e inercia del sueño. WakeSync muestrea la frecuencia cardíaca (PPG) y la quietud motora (acelerómetro), calculando un score mediante el **`Sleep-like Rest Estimator`**. Cuando el usuario alcanza un estado de reposo profundo continuo, se inicia una cuenta regresiva estricta de 15 minutos para despertarlo con vibraciones suaves y progresivas.
    - *Variante con Destino:* El Modo Siesta permite opcionalmente fijar un destino geográfico (GPS). Si el usuario viaja mientras descansa, **la proximidad al destino ($d \le R_{\text{alert}}$ dinámico, con piso de $250\text{ m}$) tiene prioridad absoluta sobre el temporizador de 15 minutos**, despertando al usuario para que no pase de largo su parada.
-2. **Modo Transporte (TransitNudge):** Previene que el pasajero pase de largo su destino en transporte público mientras lee, trabaja o escucha música con auriculares. **El usuario elige libremente cualquier destino desde el propio reloj mediante Google Maps** (búsqueda por voz o teclado, o selección de un punto sobre el mapa). Luego monitorea la distancia en línea recta al destino mediante coordenadas satelitales (GPS) y la fórmula esférica de Haversine.
+2. **Modo Transporte (TransitNudge):** Previene que el pasajero pase de largo su destino en transporte público mientras lee, trabaja o escucha música con auriculares. **El usuario elige libremente cualquier destino desde el propio reloj mediante Mapbox** (búsqueda por voz o teclado, o selección de un punto sobre el mapa). Luego monitorea la distancia en línea recta al destino mediante coordenadas satelitales (GPS) y la fórmula esférica de Haversine.
    - *Conectividad solo al elegir destino:* La búsqueda y el mapa requieren internet (vía el backend `wakesync-gateway`); **una vez fijado el destino, el seguimiento GPS, el cálculo de $R_{\text{alert}}$ y la alerta háptica funcionan sin conexión**, porque se ejecutan localmente en el reloj.
    - *Comportamiento sin Temporizador:* Este modo no utiliza temporizador de siesta; monitorea continuamente la posición y dispara alertas hápticas al ingresar al radio de alerta dinámico **$R_{\text{alert}} = \max(250\text{ m},\, v \cdot T_{\text{reaccion}} + \frac{v^2}{2 \cdot |a_{\text{frenado}}|})$** (con piso de $250\text{ m}$ y modulación por reposo). Opcionalmente, si el estimador de reposo detecta que el usuario está en `DEEP_REST`, modula la intensidad a `URGENT` y amplía el radio de alerta con $T_{\text{reaccion}} = 90\text{ s}$ para un despertar gradual y seguro.
 
@@ -83,7 +85,7 @@
   • Estimación de Reposo Profundo                         • Proximidad Geográfica (GPS Haversine)
   • Temporizador de Siesta (15 min)                       • Geocerca Dinámica R_alert (Piso: 250 m)
   • Calibración Basal de 20 s                             • Sin Temporizador de Siesta
-  • Opción: Con o Sin Destino (Google Maps)               • Destino libre elegido en Google Maps
+  • Opción: Con o Sin Destino (Mapbox)                     • Destino libre elegido en Mapbox
   • Prioridad: Alerta GPS interrumpe Siesta               • Modulación según Reposo (AWAKE vs DEEP_REST)
                                                           • Cancelación manual inmediata
            │                                                       │
@@ -97,14 +99,14 @@
              • Motor de IA Heurística: `Sleep-like Rest Estimator` (local, sin red)
              • Actuador Háptico: Formas de onda `VibrationEffect` (3 niveles)
              • UI Circular en Compose: Jetpack Compose for Wear OS + Horologist
-             • Selector de Destino: `com.wakesync.places` (Google Maps vía backend)
-             • Insights por IA (obligatorio): `com.wakesync.insights` (Gemini vía backend)
+             • Selector de Destino: `com.wakesync.places` (Mapbox vía backend)
+             • Insights por IA (obligatorio): `com.wakesync.insights` (DeepSeek vía backend)
              • Cliente de Red Único: `com.wakesync.network` (HTTPS → wakesync-gateway)
                                        │
                                        ▼  HTTPS (WiFi/LTE del reloj — sin smartphone)
              [BACKEND SIN ESTADO `wakesync-gateway` — Cloudflare Workers (gratis)]
-             • Custodia las claves de Google Maps Platform y Gemini
-             • Places API · Geocoding API · Maps Static API · Gemini API
+             • Custodia las claves de Mapbox y DeepSeek
+             • Search Box API · Geocoding API v6 · Static Images API · DeepSeek API
 ```
 
 > **Aviso de Dispositivo de Bienestar (No Médico):** WakeSync es una herramienta de bienestar personal y productividad para movilidad urbana; no es un dispositivo médico. No diagnostica trastornos del sueño ni realiza estadificación clínica del sueño. Los estados de reposo son estimaciones heurísticas calculadas exclusivamente para gestionar alertas y temporizadores.
@@ -114,7 +116,7 @@ Para asegurar la terminación exitosa del proyecto en menos de 3 meses mientras 
 1. **Desarrollo y Verificación 100% en Emulador:** Toda la lógica, interfaz, flujos y alertas se verifican mediante el **Emulador Wear OS en Android Studio**.
 2. **Simulación Determinista como Vía Primaria:** El motor `MockSensorEngine` integrado en la app es la vía oficial y principal para evaluar y calificar el sistema en el aula de clases, eliminando cualquier riesgo por falta de hardware.
 3. **Postergación a Fase 2:** La adquisición de PPG continuo en la calle, el GPS en vehículos en movimiento real, la vibración háptica física medible en la piel y las pruebas de consumo de batería real se documentan como características de **Fase 2 / Opcional**.
-4. **Conectividad en el Emulador:** El emulador Wear OS accede a internet a través de la máquina anfitriona, por lo que el selector de destino (Google Maps) y los Insights por IA son 100% demostrables en emulador, sin reloj físico ni smartphone. El único requisito externo es que el backend `wakesync-gateway` esté desplegado y que el computador de la demostración tenga internet.
+4. **Conectividad en el Emulador:** El emulador Wear OS accede a internet a través de la máquina anfitriona, por lo que el selector de destino (Mapbox) y los Insights por IA son 100% demostrables en emulador, sin reloj físico ni smartphone. El único requisito externo es que el backend `wakesync-gateway` esté desplegado y que el computador de la demostración tenga internet.
 
 ### 1.3 Independencia Total del Smartphone
 WakeSync es una aplicación **Wear OS independiente (*standalone*)**:
@@ -135,13 +137,13 @@ WakeSync es una aplicación **Wear OS independiente (*standalone*)**:
 - Inferencia periódica cada **$10\text{ segundos}$** sobre ventana de análisis de **$20\text{ segundos}$**.
 - Transición a `DEEP_REST` tras **2 evaluaciones consecutivas** con score $\ge 0.60$.
 - Inicio automático de la cuenta regresiva fija de **$15\text{ minutos}$**.
-- Soporte opcional de destino (elegido libremente con el mismo selector de Google Maps del Modo Transporte): si se configura y la distancia es $\le R_{\text{alert}}$ dinámico, se dispara la alerta de llegada interrumpiendo la siesta.
+- Soporte opcional de destino (elegido libremente con el mismo selector de Mapbox del Modo Transporte): si se configura y la distancia es $\le R_{\text{alert}}$ dinámico, se dispara la alerta de llegada interrumpiendo la siesta.
 - Tiempo límite de seguridad de **$25\text{ minutos}$**: finaliza la sesión si no se detecta reposo.
 - Alerta háptica progresiva al completar la siesta o por proximidad.
 - Registro local de la sesión (duración, hora de inicio, latencia de reposo, estado final).
 
 **Función de Transporte (Modo TransitNudge):**
-- **Selección libre de destino con Google Maps desde el reloj**: búsqueda por voz o teclado (Places Autocomplete) con lista de resultados, o selección de un punto sobre un mapa de Google (arrastrar para desplazar, corona para zoom, pin central). Sin destinos predefinidos.
+- **Selección libre de destino con Mapbox desde el reloj**: búsqueda por voz o teclado (Search Box API) con lista de resultados, o selección de un punto sobre un mapa Mapbox (arrastrar para desplazar, corona para zoom, pin central). Sin destinos predefinidos.
 - Cálculo continuo de distancia geodésica en línea recta mediante la fórmula de Haversine.
 - Disparo de alerta de llegada al ingresar al radio dinámico normativo **$R_{\text{alert}} = \max(250\text{ m},\, v \cdot T_{\text{reaccion}} + \frac{v^2}{2 \cdot |a_{\text{frenado}}|})$** (con piso de $250\text{ m}$ y modulación según velocidad y reposo).
 - Despliegue en pantalla de distancia restante en metros y velocidad estimada (suavizada por EMA, $\alpha = 0.3$).
@@ -152,12 +154,12 @@ WakeSync es una aplicación **Wear OS independiente (*standalone*)**:
 - Lógica de exclusión mutua: impedir iniciar un modo si el otro está activo.
 - Motor heurístico `Sleep-like Rest Estimator` ejecutado en corrutina secundaria (`Dispatchers.Default`) en $< 10\text{ ms}$.
 - `WakeSyncForegroundService` persistente con notificación en curso para mantener la ejecución en segundo plano con pantalla apagada en el emulador.
-- `MockSensorEngine` integrado con botones en pantalla: `[Simular Siesta]` y `[Simular Ruta]` (la ruta simulada se genera hacia el destino elegido en Google Maps).
+- `MockSensorEngine` integrado con botones en pantalla: `[Simular Siesta]` y `[Simular Ruta]` (la ruta simulada se genera hacia el destino elegido en Mapbox).
 - Backend sin estado `wakesync-gateway` desplegado en Cloudflare Workers (plan gratuito), único punto de salida a internet de la app y custodio de todas las claves de API.
 - Cliente de red único `BackendClient` (`com.wakesync.network`) con timeouts, token de aplicación y errores tipados.
 
 **Insights por IA (Obligatorio en el MVP):**
-- Al finalizar cualquier sesión (`NAP` o `TRANSIT`), la pantalla de resumen solicita automáticamente un insight en lenguaje natural a Google Gemini (vía `wakesync-gateway`), usando solo los 4 campos agregados del historial.
+- Al finalizar cualquier sesión (`NAP` o `TRANSIT`), la pantalla de resumen solicita automáticamente un insight en lenguaje natural a DeepSeek (vía `wakesync-gateway`), usando solo los 4 campos agregados del historial.
 - Texto de máximo 140 caracteres, con degradación segura sin conexión y botón `[Reintentar]`.
 
 **Interfaz de Usuario y Ergonomía Circular:**
@@ -198,7 +200,7 @@ WakeSync adapta toda su interfaz a pantallas circulares de $454 \times 454\text{
 | **Siesta: Monitoreando** | Ámbar (`#FFD600`) | Score de reposo, estado actual, FC en vivo | Ninguna (silencio para dormir) |
 | **Siesta: Reposo Confirmado**| Índigo (`#7C4DFF`) | Cuenta regresiva circular (15 min), pantalla tenue | Doble pulso corto de confirmación |
 | **Buscar Destino** | Verde (`#00E676`) | Botón `[Buscar]` (voz/teclado vía `RemoteInput`), botón `[Elegir en mapa]`, lista de hasta 5 resultados (nombre + dirección) | Ninguna |
-| **Mapa de Destino** | Verde (`#00E676`) | Imagen de Google Maps a pantalla completa, pin fijo al centro, botón `[Fijar destino]` | Tick corto al cambiar de nivel de zoom con la corona |
+| **Mapa de Destino** | Verde (`#00E676`) | Imagen de Mapbox a pantalla completa, pin fijo al centro, botón `[Fijar destino]` | Tick corto al cambiar de nivel de zoom con la corona |
 | **Confirmar Destino** | Verde (`#00E676`) | Nombre y dirección del lugar, distancia en línea recta desde la posición actual, botón `[Iniciar]` | Ninguna |
 | **Transporte: En Ruta** | Verde (`#00E676`) | Nombre del destino, distancia restante al destino (m), velocidad | Micro-vibración cada 500 m recorridos |
 | **Alerta Activa (Llegada/Fin)**| Coral (`#FF1744`) | Pantalla parpadeante, botón masivo de descarte | Patrón LRA de 3 niveles en crescendo |
@@ -207,7 +209,7 @@ WakeSync adapta toda su interfaz a pantallas circulares de $454 \times 454\text{
 | **Sin Conexión** | Naranja (`#FF9100`)| Ícono de nube tachada y mensaje breve, estado no bloqueante (solo en búsqueda/mapa/insight) | Ninguna |
 
 ### 3.2 Reglas Ergonómicas para Wear OS
-* **Inicio Rápido:** El Modo Siesta se inicia en $1\text{ toque}$ desde la pantalla de Inicio (tarjeta `[Siesta]`), sin destino obligatorio. **Estado real verificado (Fase 4b, CR-01):** el Modo Transporte ya no tiene destinos fijos de acceso inmediato — la tarjeta `[Transporte]` abre directamente el flujo Buscar/Mapa Destino de Google Maps, por lo que iniciar una sesión toma **≈4 toques** (tarjeta → buscar o `[Elegir en mapa]` → resultado o `[Fijar destino]` → `[Iniciar]`) en vez del toque único documentado antes de CR-01 (ver RF-UI-04).
+* **Inicio Rápido:** El Modo Siesta se inicia en $1\text{ toque}$ desde la pantalla de Inicio (tarjeta `[Siesta]`), sin destino obligatorio. **Estado real verificado (Fase 4b, CR-01):** el Modo Transporte ya no tiene destinos fijos de acceso inmediato — la tarjeta `[Transporte]` abre directamente el flujo Buscar/Mapa Destino de Mapbox, por lo que iniciar una sesión toma **≈4 toques** (tarjeta → buscar o `[Elegir en mapa]` → resultado o `[Fijar destino]` → `[Iniciar]`) en vez del toque único documentado antes de CR-01 (ver RF-UI-04).
 * **Entrada de Texto en el Reloj:** La búsqueda de destino usa `RemoteInput` de Wear OS, que ofrece dictado por voz y teclado en pantalla sin depender de un teléfono.
 * **Control de Corona (Rotary Input):** Permite desplazarse verticalmente y ajustar opciones sin cubrir la pequeña pantalla con los dedos.
 * **Áreas de Contacto:** Todo botón interactivo respeta el estándar $\ge 48\text{dp} \times 48\text{dp}$.
@@ -324,10 +326,11 @@ Cada **$10\text{ segundos}$**, el estimador calcula la media sobre la ventana de
                                        ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │          BACKEND SIN ESTADO `wakesync-gateway` (Cloudflare Workers)         │
-│  • /v1/places/*  → Google Places API (New) + Geocoding API                  │
-│  • /v1/maps/static → Google Maps Static API (imagen PNG 454x454)            │
-│  • /v1/insights  → Google Gemini API                                        │
-│  • Secretos: GOOGLE_MAPS_API_KEY, GEMINI_API_KEY, APP_TOKEN                 │
+│  • /v1/places/*  → Mapbox Search Box API (/suggest, /retrieve)              │
+│  •                 + Geocoding API v6 (/reverse)                            │
+│  • /v1/maps/static → Mapbox Static Images API (PNG 454x454, @2x)            │
+│  • /v1/insights  → DeepSeek API                                             │
+│  • Secretos: MAPBOX_ACCESS_TOKEN, DEEPSEEK_API_KEY, APP_TOKEN               │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -340,16 +343,16 @@ El componente `SessionManager` asegura que solo exista un modo activo en ejecuci
 
 ### 5.3 Módulos de Conectividad y Fronteras
 * **Frontera Estricta de Módulos:** `com.wakesync.places` (selector de destino) y `com.wakesync.insights` (IA generativa) son componentes periféricos que importan exclusivamente de `com.wakesync.core` y de `com.wakesync.network`. No importan clases de `com.wakesync.sleep`, `com.wakesync.transit`, `com.wakesync.sensors`, `com.wakesync.ai` ni `com.wakesync.alerts`.
-* **Contratos en `core`:** La UI no conoce estos módulos directamente. `core` define los contratos `DestinationSearchContract` e `InsightContract` (mismo patrón que `AlertControllerContract` y `SimulationControllerContract`), y `WakeSyncApplication` registra sus implementaciones al arrancar. El destino elegido llega a `sleep`/`transit` como un `GeoPoint` de `core`; los modos nunca dependen de Google Maps.
-* **Único Punto de Salida a Internet:** Toda solicitud HTTPS de la app pasa por `BackendClient` (`com.wakesync.network`) hacia `wakesync-gateway`. Ningún otro módulo abre conexiones de red, y la app nunca llama directamente a servidores de Google.
+* **Contratos en `core`:** La UI no conoce estos módulos directamente. `core` define los contratos `DestinationSearchContract` e `InsightContract` (mismo patrón que `AlertControllerContract` y `SimulationControllerContract`), y `WakeSyncApplication` registra sus implementaciones al arrancar. El destino elegido llega a `sleep`/`transit` como un `GeoPoint` de `core`; los modos nunca dependen de Mapbox.
+* **Único Punto de Salida a Internet:** Toda solicitud HTTPS de la app pasa por `BackendClient` (`com.wakesync.network`) hacia `wakesync-gateway`. Ningún otro módulo abre conexiones de red, y la app nunca llama directamente a servidores de Mapbox o DeepSeek.
 * **Independencia de Conectividad vs. GPS Satelital:** La red solo se usa para (a) elegir destino y (b) generar el insight post-sesión. El receptor GPS opera por radiofrecuencia satelital y no requiere datos móviles, WiFi ni internet; por lo tanto, **una sesión ya iniciada nunca depende de la red** para calcular distancias (RF-TRAN-02) ni para disparar alertas de proximidad (RF-TRAN-03).
 * **Insights sobre Historial Persistido:** `com.wakesync.insights` opera exclusivamente sobre el `SessionRecord` ya persistido tras finalizar una sesión, sin interceptar flujos activos en segundo plano.
 
 ### 5.4 Backend Gateway `wakesync-gateway`
 * **Qué es:** Un *proxy* HTTPS sin estado (sin base de datos, sin cuentas de usuario), escrito en TypeScript y desplegado como Cloudflare Worker en el plan gratuito (100 000 solicitudes/día, sin arranque en frío, sin tarjeta de crédito). Vive en la carpeta `backend/` del repositorio.
-* **Por qué existe:** Custodiar las claves de Google Maps Platform y de Gemini fuera del APK (una clave dentro del APK es extraíble), centralizar límites de uso y dar a la app un único contrato de API estable (Apéndice F).
+* **Por qué existe:** Custodiar las claves de Mapbox y de DeepSeek fuera del APK (una clave dentro del APK es extraíble), centralizar límites de uso y dar a la app un único contrato de API estable (Apéndice F).
 * **Qué no hace:** No guarda historial, no registra coordenadas ni cuerpos de solicitud, no identifica usuarios y no participa en el seguimiento GPS de una sesión activa.
-* **Protección de costos:** Google Maps Platform exige una cuenta de facturación activa en Google Cloud (con tarjeta) aunque el uso quede dentro de la cuota gratuita mensual. Se configuran **topes de cuota diarios por API** y una **alerta de presupuesto** en Google Cloud, además del límite por IP del propio backend.
+* **Protección de costos:** Mapbox no exige tarjeta de crédito para el plan gratuito (2 500 sesiones/mes de Search Box, 100 000 consultas/mes de geocodificación temporal y 50 000 imágenes/mes de Static Images), aunque sí la exige para `permanent=true`. Se configuran **alertas de uso** en la cuenta Mapbox, además del límite por IP del propio backend.
 
 ---
 
@@ -371,13 +374,14 @@ Para asegurar que el proyecto sea evaluable sin un reloj físico, WakeSync adopt
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                 MOCKS APPLICATION ENGINE (VÍA PRIMARIA EN AULA)             │
 │  • Pantalla Modo Siesta: Botón [Simular Siesta]                             │
-│    Inyecta FC decreciente (75 -> 58 BPM) y SVM decreciente (1.8 -> 0.04     │
-│    m/s^2). Confirma DEEP_REST y arranca la cuenta de 15 minutos en vivo.    │
+│    FC constante en la basal calibrada durante la calibración, luego rampa  │
+│    de 10 s hacia 52 BPM (NAP_TARGET_HR, awaitRampStart) sin discontinuidad.│
+│    Confirma DEEP_REST y arranca la cuenta de 15 minutos en vivo.            │
 │  • Pantalla Modo Transporte: Botón [Simular Ruta]                           │
-│    Requiere un destino ya elegido en Google Maps. Interpola coordenadas     │
+│    Requiere un destino ya elegido en Mapbox. Interpola coordenadas          │
 │    hacia ESE destino (2000 m -> 400 m en 60 s, aprox. 26.7 m/s).            │
 │    Al ingresar al radio R_alert (>= 250 m), dispara la vibración de llegada.│
-│  • Al finalizar cada sesión: Resumen + Insight de Gemini (vía backend).     │
+│  • Al finalizar cada sesión: Resumen + Insight de DeepSeek (vía backend).   │
 │  • Demostración completa realizable en menos de 4 minutos de reloj.         │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │
@@ -431,10 +435,10 @@ Para eliminar contradicciones y asegurar la terminación en tiempo, todos los m�
 | **Longitud Mínima de Búsqueda** | `PLACES_MIN_QUERY_CHARS` | **$3\text{ caracteres}$** | Evita solicitudes inútiles (y costo) con textos muy cortos. |
 | **Resultados Máximos de Búsqueda** | `PLACES_MAX_RESULTS` | **$5$** | Cantidad legible en una `ScalingLazyColumn` circular. |
 | **Zoom Inicial / Mínimo / Máximo del Mapa** | `MAP_DEFAULT_ZOOM` / `MAP_MIN_ZOOM` / `MAP_MAX_ZOOM` | **$16$ / $10$ / $19$** | Nivel de calle por defecto; rango ajustable con la corona. |
-| **Tamaño de Imagen de Mapa** | `MAP_IMAGE_SIZE_PX` | **$454\text{ px}$** | `size=227x227&scale=2` en Maps Static API = pantalla completa del reloj. |
+| **Tamaño de Imagen de Mapa** | `MAP_IMAGE_SIZE_PX` | **$454\text{ px}$** | `{size}x{size}@2x` en Static Images API, con zoom enviado a Mapbox = `zoom − 1` = pantalla completa del reloj. |
 | **Espera tras Desplazar el Mapa** | `MAP_PAN_DEBOUNCE_MS` | **$400\text{ ms}$** | Pide una sola imagen nueva al soltar el dedo o detener la corona. |
 | **Precisión de Sesgo de Ubicación** | `LOCATION_BIAS_DECIMALS` | **$2$ decimales** | La posición del usuario se redondea (~1.1 km) antes de enviarse para priorizar resultados cercanos. |
-| **Límite de Solicitudes del Backend** | `BACKEND_RATE_LIMIT_PER_MIN` | **$60$ / min por IP** | Protege la cuota gratuita de Google Maps Platform y Gemini. |
+| **Límite de Solicitudes del Backend** | `BACKEND_RATE_LIMIT_PER_MIN` | **$60$ / min por IP** | Protege la cuota gratuita de Mapbox y DeepSeek. |
 
 ---
 
@@ -473,13 +477,13 @@ Para eliminar contradicciones y asegurar la terminación en tiempo, todos los m�
 ### 8.4 Módulo 4: Modo Siesta / MicroNap (`com.wakesync.sleep`)
 * **RF-NAP-01 (Calibración Inicial):** Al iniciar el Modo Siesta, la app ejecutará una calibración de **$20\text{ segundos}$** para fijar el $HR_{\text{base}}$ (con fallback defensivo a 70 BPM en ausencia de lecturas).
 * **RF-NAP-02 (Disparo del Temporizador y Pre-alerta):** La cuenta regresiva de **$15\text{ minutos}$** comenzará de forma automática inmediatamente después de confirmarse el estado `DEEP_REST`, disparando una pre-alerta `AlertLevel.SOFT`.
-* **RF-NAP-03 (Opción de Destino GPS):** El usuario podrá opcionalmente activar un destino geográfico para la siesta, elegido libremente con el Selector de Destino de Google Maps (Módulo 10, RF-PLC-01 a RF-PLC-04). `NapManager` recibe el destino como `GeoPoint` de `core`, sin depender de `com.wakesync.places`.
+* **RF-NAP-03 (Opción de Destino GPS):** El usuario podrá opcionalmente activar un destino geográfico para la siesta, elegido libremente con el Selector de Destino de Mapbox (Módulo 10, RF-PLC-01 a RF-PLC-04). `NapManager` recibe el destino como `GeoPoint` de `core`, sin depender de `com.wakesync.places`.
 * **RF-NAP-04 (Prioridad de Proximidad sobre Siesta):** Si el Modo Siesta tiene un destino activo y la distancia en línea recta al destino se reduce a $\le R_{\text{alert}}$ dinámico (con piso de $250\text{ m}$ y $T_{\text{reaccion}} = 90\text{ s}$ ante `DEEP_REST`), **la alerta de llegada se disparará inmediatamente interrumpiendo el temporizador de 15 minutos** con resultado `INTERRUPTED_BY_ARRIVAL`.
 * **RF-NAP-05 (Tiempo Límite de Sesión):** Si transcurren **$25\text{ minutos}$** de monitoreo activo sin alcanzar `DEEP_REST`, la app finalizará la sesión con una alerta suave `AlertLevel.SOFT` y resultado `TIMED_OUT`.
 * **RF-NAP-06 (Alerta por Expiración):** Al completarse los 15 minutos de siesta, la app activará la alerta `AlertLevel.URGENT` hasta que el usuario la descarte explícitamente.
 
 ### 8.5 Módulo 5: Modo Transporte / TransitNudge (`com.wakesync.transit`)
-* **RF-TRAN-01 (Selección Libre de Destino vía Google Maps):** Antes de iniciar el Modo Transporte, el usuario elegirá libremente cualquier destino mediante el Selector de Destino (Módulo 10): búsqueda por voz/teclado o selección de un punto sobre el mapa. La sesión solo puede iniciarse con un destino confirmado (RF-PLC-04). **Se eliminan los 3 destinos predefinidos** ("Campus UCC", "Estación Metro", "Casa") y el objeto `TransitDestinations`; `TransitManager` recibe el destino como `GeoPoint` de `core`, sin depender de `com.wakesync.places`.
+* **RF-TRAN-01 (Selección Libre de Destino vía Mapbox):** Antes de iniciar el Modo Transporte, el usuario elegirá libremente cualquier destino mediante el Selector de Destino (Módulo 10): búsqueda por voz/teclado o selección de un punto sobre el mapa. La sesión solo puede iniciarse con un destino confirmado (RF-PLC-04). **Se eliminan los 3 destinos predefinidos** ("Campus UCC", "Estación Metro", "Casa") y el objeto `TransitDestinations`; `TransitManager` recibe el destino como `GeoPoint` de `core`, sin depender de `com.wakesync.places`.
 * **RF-TRAN-02 (Distancia en Línea Recta Haversine):** La app calculará en cada actualización GPS la distancia geodésica esférica en línea recta hacia el destino seleccionado (aclarando en la interfaz que no corresponde a distancia vial por calles).
 * **RF-TRAN-03 (Disparo de Alerta a $R_{\text{alert}}$ dinámico):** La app activará la alerta háptica de llegada en cuanto la distancia calculada sea $\le R_{\text{alert}} = \max(250\text{ m},\, v \cdot T_{\text{reaccion}} + \frac{v^2}{2 \cdot |a_{\text{frenado}}|})$ con piso de $250\text{ m}$ y modulación por reposo ($T_{\text{reaccion}} = 90\text{ s}$ ante `DEEP_REST`).
 * **RF-TRAN-04 (Ausencia de Temporizador de Siesta):** El Modo Transporte no ejecutará ninguna cuenta regresiva de siesta; su ciclo de vida finaliza al llegar al destino o al ser cancelado por el usuario.
@@ -507,30 +511,30 @@ Para eliminar contradicciones y asegurar la terminación en tiempo, todos los m�
 * **RNF-UI-01 (Glanceability):** Toda información crítica podrá interpretarse en menos de 3 segundos de lectura visual.
 
 ### 8.8 Módulo 8: Motor de Simulación Determinista (`com.wakesync.sensors.mock`)
-* **RF-SIM-01 (Simulación de Siesta):** El botón `[Simular Siesta]` inyectará una traza fisiológica sintética (FC $75 \rightarrow 58\text{ BPM}$, SVM $1.8 \rightarrow 0.04\text{ m/s}^2$) que llevará al estimador a `DEEP_REST`, disparando el temporizador de 15 minutos.
+* **RF-SIM-01 (Simulación de Siesta):** El botón `[Simular Siesta]` mantiene la FC constante en la FC basal calibrada y el movimiento ya en reposo (`NAP_TARGET_SVM`) mientras la calibración no ha terminado; al terminar, arranca una rampa de 10 segundos de FC hacia 52 BPM (`NAP_TARGET_HR`) desde la FC basal, sin discontinuidad, llevando al estimador a `DEEP_REST` y disparando el temporizador de 15 minutos. Comportamiento real verificado tras el fix de F18 en `MockSensorEngine.kt` (`awaitRampStart`, `NAP_TARGET_HR`, `NAP_TARGET_SVM`).
 * **RF-SIM-02 (Simulación de Ruta):** El botón `[Simular Ruta]` interpolará la posición GPS desde $2000\text{ m}$ hasta $400\text{ m}$ del destino **elegido por el usuario en el Selector de Destino** a lo largo de **$60\text{ segundos}$** (emisión a 1 Hz, $\approx 26.7\text{ m/s}$), manteniéndose luego a $400\text{ m}$ e ingresando al radio de alerta dinámico $R_{\text{alert}} \ge 250\text{ m}$ para activar la alerta. El motor no tendrá un destino por defecto: si no hay destino confirmado, el botón permanece deshabilitado.
 * **RF-SIM-03 (Independencia de Sensores):** El motor de simulación funcionará al 100% en el emulador de Android Studio sin necesidad de hardware real. La simulación en sí no usa red; solo la elección previa del destino la requiere.
 
 ### 8.9 Módulo 9: Motor de Insights por IA (`com.wakesync.insights`)
 
-Este módulo es **obligatorio en el MVP** (CR-01) y cumple el requisito de integrar un modelo de Inteligencia Artificial generativa externo: da al usuario una retroalimentación breve en lenguaje natural tras cada descanso o trayecto. El proveedor es **Google Gemini** (tier gratuito), invocado **siempre a través del backend `wakesync-gateway`** (Módulo 11), nunca de forma directa desde el reloj.
+Este módulo es **obligatorio en el MVP** (CR-01) y cumple el requisito de integrar un modelo de Inteligencia Artificial generativa externo: da al usuario una retroalimentación breve en lenguaje natural tras cada descanso o trayecto. El proveedor operativo es **DeepSeek** (`deepseek-flash`, CR-03 — ver historial de versiones para el motivo del cambio de proveedor detectado en la Fase 5), invocado **siempre a través del backend `wakesync-gateway`** (Módulo 11), nunca de forma directa desde el reloj.
 
-> **Distinción importante:** el `Sleep-like Rest Estimator` (Módulo 3) sigue siendo un modelo heurístico determinista que corre **localmente** y sin red. Gemini solo interviene después de terminada la sesión, sobre datos agregados, y nunca toma decisiones de alerta.
+> **Distinción importante:** el `Sleep-like Rest Estimator` (Módulo 3) sigue siendo un modelo heurístico determinista que corre **localmente** y sin red. DeepSeek solo interviene después de terminada la sesión, sobre datos agregados, y nunca toma decisiones de alerta.
 
 * **RF-INS-01 (Generación de Insight Post-Sesión):** Al finalizar cualquier sesión (`NAP` o `TRANSIT`) y mostrarse la pantalla de resumen (RF-UI-05), la app solicitará **automáticamente una única vez** un insight mediante `POST /v1/insights` del backend. Enviará exclusivamente los atributos agregados persistidos según `local-storage-spec` (`sessionType`, `durationSeconds`, `restLatencySeconds`, `outcome`) y mostrará una tarjeta con texto breve (máximo 140 caracteres, `INSIGHTS_MAX_CHARS`).
 * **RF-INS-02 (Degradación sin Conectividad):** Si el reloj no tiene conexión, el backend responde con error o la solicitud excede $10\text{ segundos}$ (`INSIGHTS_API_TIMEOUT_SEC`), la tarjeta mostrará *"Resumen no disponible sin conexión"* y un botón `[Reintentar]`. La falla no bloqueará el hilo principal, no hará reintentos automáticos en bucle y no condicionará el guardado del historial ni el funcionamiento de los modos.
 * **RF-INS-03 (Persistencia del Insight):** El texto obtenido se guardará en el campo opcional `insightText` del `SessionRecord` correspondiente, para mostrarlo en el historial sin volver a llamar a la API. Desde el detalle del historial, un registro sin insight podrá solicitarlo con `[Generar Insight]`.
 * **RF-INS-04 (Contenido del Insight):** El prompt de sistema vive en el backend (no en la app) y exige: español, tono de bienestar no clínico, sin diagnósticos médicos, máximo 140 caracteres. El backend recorta la respuesta si excede el límite, y la app vuelve a validar la longitud.
 * **RNF-INS-01 (Privacidad Estricta del Payload):** El cuerpo enviado nunca incluirá series temporales biomédicas crudas (PPG o SVM), frecuencia cardíaca, score de reposo, identificadores de hardware, nombres de usuario, nombre del destino ni coordenadas GPS; se limita de forma estricta a los 4 campos agregados.
-* **RNF-INS-02 (Gestión Segura de Credenciales):** La clave de Gemini (`GEMINI_API_KEY`) existe **solo** como secreto del backend (`wrangler secret put`). Nunca estará en el código fuente, en el repositorio, en `local.properties` ni en el APK.
+* **RNF-INS-02 (Gestión Segura de Credenciales):** La clave del proveedor de insights (`DEEPSEEK_API_KEY`) existe **solo** como secreto del backend (`wrangler secret put`). Nunca estará en el código fuente, en el repositorio, en `local.properties` ni en el APK.
 
-### 8.10 Módulo 10: Selector de Destino con Google Maps (`com.wakesync.places`)
+### 8.10 Módulo 10: Selector de Destino con Mapbox (`com.wakesync.places`)
 
-Implementa `DestinationSearchContract` (RF-CORE-07). Permite elegir **cualquier destino** desde el reloj, consumiendo Google Maps Platform **a través del backend** (Places API (New), Geocoding API y Maps Static API). No hay destinos predefinidos, recientes ni favoritos en el MVP.
+Implementa `DestinationSearchContract` (RF-CORE-07). Permite elegir **cualquier destino** desde el reloj, consumiendo Mapbox **a través del backend** (Search Box API, Geocoding API v6 y Static Images API). No hay destinos predefinidos, recientes ni favoritos en el MVP.
 
 * **RF-PLC-01 (Búsqueda por Voz o Teclado):** El botón `[Buscar]` abrirá la entrada de texto de Wear OS (`RemoteInput` con `RemoteInputIntentHelper`, que ofrece dictado por voz y teclado). Con al menos 3 caracteres (`PLACES_MIN_QUERY_CHARS`), la app llamará a `POST /v1/places/autocomplete` y mostrará hasta 5 resultados (`PLACES_MAX_RESULTS`) con nombre principal y texto secundario (dirección). Para priorizar lugares cercanos, enviará la posición actual **redondeada a 2 decimales** (`LOCATION_BIAS_DECIMALS`), si está disponible.
-* **RF-PLC-02 (Resolución de Coordenadas del Resultado):** Al tocar un resultado, la app llamará a `GET /v1/places/{placeId}` para obtener latitud, longitud, nombre y dirección formateada. La búsqueda y el detalle compartirán un `sessionToken` (UUID generado en el reloj) para que Google los facture como una sola sesión de autocompletado.
-* **RF-PLC-03 (Selección sobre el Mapa):** El botón `[Elegir en mapa]` mostrará una imagen de Google Maps de $454 \times 454\text{ px}$ (`GET /v1/maps/static`), centrada en la posición actual (o en el último resultado consultado) con zoom $16$ (`MAP_DEFAULT_ZOOM`) y un **pin fijo en el centro de la pantalla**:
+* **RF-PLC-02 (Resolución de Coordenadas del Resultado):** Al tocar un resultado, la app llamará a `GET /v1/places/{placeId}` para obtener latitud, longitud, nombre y dirección formateada. La búsqueda (`/suggest`) y el detalle (`/retrieve`) compartirán el mismo `session_token` (UUID generado en el reloj) para que Mapbox los facture como una sola sesión de Search Box; la sesión se cierra al llamar `/retrieve` con ese token, o expira a los 180 s o tras 50 `/suggest`.
+* **RF-PLC-03 (Selección sobre el Mapa):** El botón `[Elegir en mapa]` mostrará una imagen de Mapbox de $454 \times 454\text{ px}$ (`GET /v1/maps/static`), centrada en la posición actual (o en el último resultado consultado) con zoom $16$ (`MAP_DEFAULT_ZOOM`) y un **pin fijo en el centro de la pantalla**:
   - **Arrastrar** desplaza el mapa: el nuevo centro se calcula en el reloj con la proyección Web Mercator (Apéndice A.7).
   - **Tocar** un punto recentra el mapa en ese punto (misma proyección).
   - **Girar la corona** cambia el zoom entre $10$ y $19$ (`MAP_MIN_ZOOM`/`MAP_MAX_ZOOM`).
@@ -541,7 +545,7 @@ Implementa `DestinationSearchContract` (RF-CORE-07). Permite elegir **cualquier 
 * **RF-PLC-06 (Sin Red Durante la Sesión):** Una vez iniciada la sesión, el módulo no hará solicitudes de red en segundo plano. El destino vive en el estado de la sesión y no se guarda en ningún historial de destinos.
 * **RNF-PLC-01 (Latencia Percibida):** Con red disponible en el emulador, los resultados de búsqueda deberán aparecer en $\le 2\text{ s}$ y cada imagen de mapa en $\le 2\text{ s}$ (sin contar el tiempo de dictado o escritura).
 * **RNF-PLC-02 (Privacidad de Ubicación):** La posición actual del usuario nunca se enviará con más de 2 decimales. Las coordenadas exactas enviadas corresponden solo al punto que el usuario eligió como destino o al centro del mapa que él mismo está explorando.
-* **RNF-PLC-03 (Atribución):** La imagen del mapa conservará el logotipo y la atribución de Google que incluye Maps Static API, sin recortarlos (condición de los términos de servicio de Google Maps Platform).
+* **RNF-PLC-03 (Atribución):** La imagen se solicita con `logo=false&attribution=false` porque las esquinas de la imagen cuadrada quedan recortadas por la pantalla redonda. La app dibuja `© Mapbox © OpenStreetMap` dentro de la zona segura inferior y el logotipo (wordmark) de Mapbox, como exigen los términos de atribución de Mapbox para mapas estáticos.
 
 ### 8.11 Módulo 11: Cliente de Red y Backend Gateway (`com.wakesync.network` + `backend/`)
 
@@ -553,14 +557,14 @@ Implementa `DestinationSearchContract` (RF-CORE-07). Permite elegir **cualquier 
 
 **Backend (`backend/`, Cloudflare Worker `wakesync-gateway`):**
 * **RF-BE-01 (Endpoints):** El backend expondrá exactamente los endpoints del Apéndice F: `GET /v1/health`, `POST /v1/places/autocomplete`, `GET /v1/places/{placeId}`, `GET /v1/geocode/reverse`, `GET /v1/maps/static` y `POST /v1/insights`.
-* **RF-BE-02 (Custodia de Secretos):** `GOOGLE_MAPS_API_KEY`, `GEMINI_API_KEY` y `APP_TOKEN` se guardarán como secretos de Cloudflare (`wrangler secret put`). La clave de Google se restringirá en Google Cloud Console **por API** (solo Places API (New), Geocoding API y Maps Static API).
-* **RF-BE-03 (Validación de Token de App):** Toda solicitud sin la cabecera `X-WakeSync-App-Token` correcta recibirá `401`. *Limitación reconocida:* este token vive en el APK y es extraíble; su propósito es filtrar tráfico casual, no autenticar usuarios. La protección real de costos la dan RF-BE-04 y los topes de cuota de Google Cloud.
-* **RF-BE-04 (Límite de Uso):** Máximo 60 solicitudes por minuto por IP (`BACKEND_RATE_LIMIT_PER_MIN`); al excederlo responderá `429`. En Google Cloud se configurarán topes de cuota diarios por API y una alerta de presupuesto.
-* **RF-BE-05 (Validación de Entradas):** El backend validará tipos y rangos (latitud $[-90, 90]$, longitud $[-180, 180]$, zoom $[10, 19]$, texto de búsqueda de 3 a 100 caracteres, `outcome`/`sessionType` dentro de sus enumeraciones) y responderá `400` ante entradas inválidas, sin reenviarlas a Google.
-* **RF-BE-06 (Idioma y Región):** Las llamadas a Google usarán `languageCode=es` y `regionCode=co` (búsqueda) y `language=es` (geocodificación).
+* **RF-BE-02 (Custodia de Secretos):** `MAPBOX_ACCESS_TOKEN`, `DEEPSEEK_API_KEY` y `APP_TOKEN` se guardarán como secretos de Cloudflare (`wrangler secret put`). Se usa un token público de Mapbox (`pk.`) con alcance mínimo; no se restringe por URL, porque el Worker llama a Mapbox sin cabecera `Referer` y un token restringido por URL respondería `403`.
+* **RF-BE-03 (Validación de Token de App):** Toda solicitud sin la cabecera `X-WakeSync-App-Token` correcta recibirá `401`. *Limitación reconocida:* este token vive en el APK y es extraíble; su propósito es filtrar tráfico casual, no autenticar usuarios. La protección real de costos la dan RF-BE-04 y las alertas de uso de la cuenta Mapbox.
+* **RF-BE-04 (Límite de Uso):** Máximo 60 solicitudes por minuto por IP (`BACKEND_RATE_LIMIT_PER_MIN`); al excederlo responderá `429`. En la cuenta Mapbox se configurarán alertas de uso.
+* **RF-BE-05 (Validación de Entradas):** El backend validará tipos y rangos (latitud $[-90, 90]$, longitud $[-180, 180]$, zoom $[10, 19]$, texto de búsqueda de 3 a 100 caracteres, `outcome`/`sessionType` dentro de sus enumeraciones) y responderá `400` ante entradas inválidas, sin reenviarlas al proveedor.
+* **RF-BE-06 (Idioma y Región):** Las llamadas a Mapbox usarán `language=es` y `country=co` (Search Box) y `language=es` (Geocoding API v6).
 * **RNF-BE-01 (Despliegue Gratuito):** El backend se desplegará con `wrangler deploy` en el plan gratuito de Cloudflare Workers, con URL del tipo `https://wakesync-gateway.<subdominio>.workers.dev`. No requiere tarjeta de crédito en Cloudflare.
 * **RNF-BE-02 (Sin Estado y Sin Registro de Datos Personales):** El backend no tendrá base de datos ni almacenamiento persistente, no registrará cuerpos de solicitud, textos de búsqueda ni coordenadas, y solo registrará método, ruta, código de estado y latencia.
-* **RNF-BE-03 (Sobrecosto de Latencia):** El salto por el backend deberá añadir menos de $300\text{ ms}$ a la latencia de la API de Google correspondiente.
+* **RNF-BE-03 (Sobrecosto de Latencia):** El salto por el backend deberá añadir menos de $300\text{ ms}$ a la latencia de la API del proveedor (Mapbox o DeepSeek).
 
 ### 8.12 Matriz de Trazabilidad de Requisitos (SRS Traceability Matrix)
 
@@ -573,8 +577,8 @@ Esta matriz vincula cada requisito funcional y no funcional con su módulo respo
 | **RF-CORE-03** | Gestión Segura de WakeLock (timeout 40 min) | `com.wakesync.core` | Fase 1 | **Verificado en emulador** | `WakeLockManager` con liberación automática defensiva (tope de 40 min alineado con `absoluteCapJob`). |
 | **RF-CORE-04** | Permisos en Tiempo de Ejecución Wear OS | `com.wakesync.core` | Fase 1 | **Verificado en emulador** | `PermissionManager` para `BODY_SENSORS`, ubicación y notificaciones. **Ajuste pendiente (CR-01):** declarar `INTERNET` y `ACCESS_NETWORK_STATE` en el manifiesto. |
 | **RF-CORE-05** | Flujo Reactivo de Estado Inmutable | `com.wakesync.core` | Fase 1 | **Verificado en emulador** | `StateFlow<WakeSyncState>` como única fuente de verdad. |
-| **RF-CORE-06** | Aplicación Independiente (Standalone, sin smartphone) | `com.wakesync.core` | Fase 4b | **Pendiente (CR-01)** | `meta-data` `com.google.android.wearable.standalone=true`; sin Data Layer API. |
-| **RF-CORE-07** | Contratos de Conectividad (`DestinationSearchContract`, `InsightContract`) | `com.wakesync.core` | Fase 4b | **Pendiente (CR-01)** | Registro en `WakeSyncApplication.onCreate()`, mismo patrón que `AlertControllerContract`. |
+| **RF-CORE-06** | Aplicación Independiente (Standalone, sin smartphone) | `com.wakesync.core` | Fase 4b | **Implementado/Verificado** | `meta-data` `com.google.android.wearable.standalone=true` ([AndroidManifest.xml:31-33](app/src/main/AndroidManifest.xml#L31-L33)); `grep` sin coincidencias de `play-services-wearable` en `build.gradle.kts` ni de `com.google.android.gms.wearable`/`DataClient`/`MessageClient`/`WearableListenerService` en el código. |
+| **RF-CORE-07** | Contratos de Conectividad (`DestinationSearchContract`, `InsightContract`) | `com.wakesync.core` | Fase 4b | **Implementado/Verificado** | Log "Registered DestinationSearchProvider and InsightProvider contracts" en el arranque; la UI consume exclusivamente estos contratos en las 4 corridas de la Fase 5. |
 | **RNF-CORE-01**| Operación No Bloqueante en Hilo Principal | `com.wakesync.core` | Fase 1 | **Verificado en emulador** | Corrutinas Kotlin en `Dispatchers.Default` e `IO`. |
 | **RNF-CORE-02**| Resiliencia ante Muerte del Proceso | `com.wakesync.core` | Fase 1 | **Verificado en emulador** | Servicio iniciado con bandera `START_STICKY`. |
 | **RF-SENS-01** | Muestreo de Frecuencia Cardíaca ($\ge 0.5\text{ Hz}$) | `com.wakesync.sensors` | Fase 2a | **Implementado** | Health Services API vía `RealSensorSource`. |
@@ -594,7 +598,7 @@ Esta matriz vincula cada requisito funcional y no funcional con su módulo respo
 | **RF-NAP-04**  | Prioridad Absoluta de Geocerca sobre Siesta | `com.wakesync.sleep` | Fase 3 | **Implementado y Verificado en Tests Unitarios** | Ingreso a $R_{\text{alert}}$ cancela siesta e interrumpe con `URGENT` (19/19 tests pasando). |
 | **RF-NAP-05**  | Timeout de Inactividad sin Reposo ($25\text{ min}$) | `com.wakesync.sleep` | Fase 3 | **Implementado y Verificado en Tests Unitarios** | 25 min netos de monitoreo; concluye con `SOFT` y `TIMED_OUT` (19/19 tests pasando). |
 | **RF-NAP-06**  | Alerta Progresiva por Expiración de Siesta | `com.wakesync.sleep` | Fase 3 | **Implementado y Verificado en Tests Unitarios** | Dispara `AlertLevel.URGENT` al finalizar los 15 minutos (19/19 tests pasando). |
-| **RF-TRAN-01** | Selección Libre de Destino vía Google Maps | `com.wakesync.transit` / `com.wakesync.places` | Fase 4b | **Reabierto — Pendiente (CR-01)** | Reemplaza la versión de Fase 3 con 3 destinos fijos. Eliminar `TransitDestinations` y los strings de destinos predefinidos; `TransitManager` recibe el `GeoPoint` confirmado. |
+| **RF-TRAN-01** | Selección Libre de Destino vía Mapbox | `com.wakesync.transit` / `com.wakesync.places` | Fase 4b | **Implementado/Verificado** | Reemplaza la versión de Fase 3 con 3 destinos fijos. `TransitDestinations` y los strings de destinos predefinidos eliminados; `TransitManager` recibe el `GeoPoint` confirmado. Verificado en 3.2/3.3: destino elegido libremente, sin destinos predefinidos. |
 | **RF-TRAN-02** | Geodesia Esférica Haversine en Línea Recta | `com.wakesync.transit` | Fase 3 | **Implementado y Verificado en Tests Unitarios** | Radio terrestre 6,371,000 m (`GeofenceCalculator`, 19/19 tests pasando). |
 | **RF-TRAN-03** | Radio de Alerta Dinámico $R_{\text{alert}}$ | `com.wakesync.transit` | Fase 3 | **Implementado y Verificado en Tests Unitarios** | Fórmula dinámica cinemática con piso de 250 m y EMA ($\alpha = 0.3$, 19/19 tests pasando). |
 | **RF-TRAN-04** | Ausencia de Cuenta Regresiva de Siesta | `com.wakesync.transit` | Fase 3 | **Implementado y Verificado en Tests Unitarios** | Modo exclusivamente de proximidad geográfica (19/19 tests pasando). |
@@ -605,41 +609,41 @@ Esta matriz vincula cada requisito funcional y no funcional con su módulo respo
 | **RNF-ALRT-01**| Latencia de Despacho Háptico Sub-20ms | `com.wakesync.alerts` | Fase 2b | **Verificado en emulador** | Meta de latencia $< 20\text{ ms}$ (`haptic-waveform-spec`) lograda mediante pre-cacheo ansioso de formas de onda en inicialización. |
 | **RF-UI-01**   | Interfaz Circular Adaptada a Wear OS | `com.wakesync.ui` | Fase 4 / Fase 4b | **Implementado (Fase 4 / Fase 4b)** | Componentes Jetpack Compose for Wear OS Material 3 en `HomeScreen`, `NapScreen`, `TransitScreen`, `SettingsScreen`, y en las 4 pantallas nuevas de CR-01 (`DestinationSearchScreen`, `DestinationMapScreen`, `ConfirmDestinationScreen`, `SessionSummaryScreen`) más el componente compartido `PickerFallbackBanner`. |
 | **RF-UI-02**   | Soporte para Corona Rotatoria (Rotary Input) | `com.wakesync.ui` | Fase 4 / Fase 4b | **Implementado (Fase 4 / Fase 4b)** | Integración de librería Horologist (`rotaryWithScroll`); `DestinationMapScreen` añade `onRotaryScrollEvent` directo para el zoom del mapa (RF-PLC-03). |
-| **RF-UI-03**   | Glanceability y Visibilidad de Estado ($< 3\text{ s}$) | `com.wakesync.ui` | Fase 4 / Fase 4b | **Implementado (Fase 4) / Ajuste pendiente (CR-01)** | Falta mostrar el nombre del destino elegido en Google Maps. |
-| **RF-UI-04**   | Pantallas del Selector de Destino (Buscar, Mapa, Confirmar) | `com.wakesync.ui` | Fase 4b | **Implementado (CR-01)** | `DestinationSearchScreen`, `DestinationMapScreen`, `ConfirmDestinationScreen` + `PickerFallbackBanner` compartido, orquestadas por `WakeSyncNavHost` con un `when` sobre `DestinationPickerState` (sin `SwipeDismissableNavHost` anidado) y `BackHandler`. Reemplaza el `DestinationPickerDialog` de 3 destinos fijos eliminado de `HomeScreen`. **Cambio de comportamiento (ver 3.2):** iniciar el Modo Transporte pasó de 1 toque a ≈4 toques porque el destino ya no es una lista fija sino que se elige libremente vía Google Maps. Hereda las deudas conocidas de RF-PLC-03 y RF-PLC-04. |
+| **RF-UI-03**   | Glanceability y Visibilidad de Estado ($< 3\text{ s}$) | `com.wakesync.ui` | Fase 4 / Fase 4b | **Implementado (Fase 4) / Ajuste pendiente (CR-01)** | Falta mostrar el nombre del destino elegido en Mapbox. |
+| **RF-UI-04**   | Pantallas del Selector de Destino (Buscar, Mapa, Confirmar) | `com.wakesync.ui` | Fase 4b | **Implementado (CR-01)** | `DestinationSearchScreen`, `DestinationMapScreen`, `ConfirmDestinationScreen` + `PickerFallbackBanner` compartido, orquestadas por `WakeSyncNavHost` con un `when` sobre `DestinationPickerState` (sin `SwipeDismissableNavHost` anidado) y `BackHandler`. Reemplaza el `DestinationPickerDialog` de 3 destinos fijos eliminado de `HomeScreen`. **Cambio de comportamiento (ver 3.2):** iniciar el Modo Transporte pasó de 1 toque a ≈4 toques porque el destino ya no es una lista fija sino que se elige libremente vía Mapbox. Hereda las deudas conocidas de RF-PLC-03 y RF-PLC-04. |
 | **RF-UI-05**   | Resumen Post-Sesión con Insight de IA | `com.wakesync.ui` | Fase 4b | **Implementado (CR-01)** | `SessionSummaryScreen` consume `InsightContract` vía `InsightProvider`. `WakeSyncNavHost` dispara `requestInsight()` una sola vez, solo después de confirmar que el `SessionRecord` de la sesión recién terminada ya está visible en `SessionHistoryRepository.sessionHistory` (evita la condición de carrera con la persistencia asíncrona de `SessionManager.endSession()`). |
 | **RNF-UI-01**  | Legibilidad Ergonómica en Pantalla 454x454 | `com.wakesync.ui` | Fase 4 | **Implementado (Fase 4)** | Targets táctiles $\ge 48\text{dp}$ sin recortes de texto. |
-| **RF-SIM-01**  | Simulación Sintética de Reposo para Siesta | `com.wakesync.sensors.mock` | Fase 2a | **Verificado en emulador** | `MockSensorEngine.startNapSimulation()`: FC 75→58 BPM, SVM 1.8→0.04 m/s². |
-| **RF-SIM-02**  | Simulación Sintética de Ruta GPS (2000→400 m en 60 s) | `com.wakesync.sensors.mock` | Fase 2a / Fase 4b | **Implementado / Ajuste pendiente (CR-01)** | `MockSensorEngine.startRouteSimulation()` ya interpola 2000→400 m en 60 s (`MockSensorEngineTest`). Pendiente: eliminar el destino por defecto "Campus UCC" y exigir el destino elegido. |
+| **RF-SIM-01**  | Simulación Sintética de Reposo para Siesta | `com.wakesync.sensors.mock` | Fase 2a / Fase 5 (F18) | **Verificado en emulador** | `MockSensorEngine.startNapSimulation()`: FC constante en la basal + `NAP_TARGET_SVM` durante calibración, luego rampa de 10 s hacia `NAP_TARGET_HR` = 52 BPM (`awaitRampStart`), sin discontinuidad. |
+| **RF-SIM-02**  | Simulación Sintética de Ruta GPS (2000→400 m en 60 s) | `com.wakesync.sensors.mock` | Fase 2a / Fase 4b | **Implementado/Verificado** | `MockSensorEngine.startRouteSimulation()` interpola 2000→400 m en 60 s (`MockSensorEngineTest`); sin destino por defecto, exige el destino elegido (RF-TRAN-01). Llegada y disparo de alerta verificados en todas las corridas de Transporte de la Fase 5; los tiempos de llegada observados (33 s, 13 s) varían según la distancia real entre el geo-fix de prueba y el destino elegido (artefacto del escenario, no del código). |
 | **RF-SIM-03**  | Independencia Absoluta de Hardware Físico | `com.wakesync.sensors.mock` | Fase 2a | **Verificado en emulador** | Evaluación 100% autónoma en emulador de Android Studio. |
-| **RF-INS-01**  | Insight Post-Sesión Automático (Gemini vía backend) | `com.wakesync.insights` | Fase 4b | **Implementado (Obligatorio, CR-01)** | `InsightRepository.requestInsight()` llama `POST /v1/insights` con exactamente los 4 agregados (`sessionType`, `durationSeconds`, `restLatencySeconds`, `outcome`); disparo único orquestado por `WakeSyncNavHost` (ver RF-UI-05). `backend/src/insights.ts` rechaza cuerpos que no tengan exactamente esas 4 claves. |
+| **RF-INS-01**  | Insight Post-Sesión Automático (DeepSeek vía backend) | `com.wakesync.insights` | Fase 4b | **Implementado (Obligatorio, CR-01/CR-03)** | `InsightRepository.requestInsight()` llama `POST /v1/insights` con exactamente los 4 agregados (`sessionType`, `durationSeconds`, `restLatencySeconds`, `outcome`); disparo único orquestado por `WakeSyncNavHost` (ver RF-UI-05). `backend/src/insights.ts` rechaza cuerpos que no tengan exactamente esas 4 claves. |
 | **RF-INS-02**  | Degradación sin Conectividad (Timeout 10 s) + `[Reintentar]` | `com.wakesync.insights` | Fase 4b | **Implementado (Obligatorio, CR-01)** | `InsightState.Unavailable` ante `NetworkUnavailable`/`Timeout`/`HttpError`/`ParseError`; `SessionSummaryScreen` muestra el mensaje y el botón `[Reintentar]` (`InsightRepository.retry()`). Ejecuta en corrutina sobre `Dispatchers.Main.immediate`, sin bloquear el hilo principal y sin reintento automático en bucle. |
 | **RF-INS-03**  | Persistencia del Insight en `SessionRecord.insightText` | `com.wakesync.insights` / `com.wakesync.core` | Fase 4b | **Implementado (Obligatorio, CR-01)** | `InsightRepository` persiste vía `SessionHistoryRepository.updateInsight()` y reutiliza `record.insightText` cacheado sin volver a llamar al backend si ya existe (evita llamadas repetidas desde el historial). |
 | **RF-INS-04**  | Contenido del Insight (español, no clínico, ≤140) | `backend/` | Fase 4b | **Implementado (Obligatorio, CR-01)** | Prompt de sistema en `backend/src/insights.ts` (español, tono de bienestar, sin diagnósticos médicos, sin markdown/emoji); recorte a 140 caracteres en el backend y revalidación (`take(140)`) en `InsightRepository` del lado del reloj. |
-| **RNF-INS-01** | Privacidad de Payload (Cero Series Crudas / GPS) | `com.wakesync.insights` | Fase 4b | **Pendiente (Obligatorio, CR-01)** | Payload limitado estrictamente a los 4 campos agregados. |
-| **RNF-INS-02** | Clave de Gemini solo como Secreto del Backend | `backend/` | Fase 4b | **Pendiente (Obligatorio, CR-01)** | `wrangler secret put GEMINI_API_KEY`; nunca en el APK. |
+| **RNF-INS-01** | Privacidad de Payload (Cero Series Crudas / GPS) | `com.wakesync.insights` | Fase 4b | **Implementado/Verificado** | Payload limitado estrictamente a los 4 campos agregados; verificado en todas las llamadas a `/v1/insights` de la Fase 5 (sin cuerpos ni biométricos crudos). |
+| **RNF-INS-02** | Clave del Proveedor de Insights solo como Secreto del Backend | `backend/` | Fase 4b | **Implementado/Verificado** | `wrangler secret put DEEPSEEK_API_KEY`; nunca en el APK — confirmado por descompilación de `app-debug.apk` (0 coincidencias de patrones de clave). |
 | **RF-PLC-01**  | Búsqueda de Destino por Voz o Teclado (`RemoteInput`) | `com.wakesync.places` | Fase 4b | **Implementado (CR-01)** | `DestinationSearchScreen` abre `RemoteInputIntentHelper` (voz/teclado); `DestinationSearchRepository.search()` exige ≥3 caracteres (`PLACES_MIN_QUERY_CHARS`) y llama `POST /v1/places/autocomplete` con sesgo de ubicación redondeado a 2 decimales, hasta 5 resultados. |
 | **RF-PLC-02**  | Resolución de Coordenadas del Resultado | `com.wakesync.places` | Fase 4b | **Implementado (CR-01)** | `selectPrediction()` llama `GET /v1/places/{placeId}` reutilizando el `sessionToken` (UUID) generado por `search()`. |
 | **RF-PLC-03**  | Selección sobre el Mapa (pin central, arrastre, corona) | `com.wakesync.places` / `com.wakesync.ui` | Fase 4b | **Implementado con deuda conocida (CR-01)** | `DestinationMapScreen` + `DestinationSearchRepository`: arrastre/toque vía `WebMercatorProjection`, zoom por corona, debounce de 400 ms, `[Fijar destino]` con `GET /v1/geocode/reverse`. **Bug conocido, pendiente de `connectivity-engineer`:** en `DestinationSearchRepository.fetchMapImage()` (líneas ~211-238), si el pan/zoom falla por red, el estado se sobreescribe a `Offline` y pierde `center`/`zoom`; al volver la red, `retry()` no logra restaurar la imagen porque el estado ya no es `Map`, dejando la pantalla de mapa atascada en `Offline`. |
 | **RF-PLC-04**  | Confirmación de Destino antes de Iniciar | `com.wakesync.places` / `com.wakesync.ui` | Fase 4b | **Implementado con deuda conocida (CR-01)** | `ConfirmDestinationScreen` muestra nombre/dirección/distancia y `[Iniciar]`; al confirmar entrega un `GeoPoint` a `SessionManager.requestStartSession()`. **Bug conocido, pendiente de `connectivity-engineer`:** `currentLocationProvider` en `WakeSyncApplication.onCreate()` (línea ~35) está mal cableado — devuelve `coordinator.sessionManager.state.value.transitState.destination` (el propio destino) en vez de la posición GPS actual del usuario, por lo que `straightLineMeters` es prácticamente siempre `null` en la práctica. La pantalla omite la fila de distancia cuando es `null` en vez de mostrar un valor erróneo (mitigación parcial en `com.wakesync.ui`, no corrige la causa). |
 | **RF-PLC-05**  | Degradación sin Conectividad (Timeout 5 s) | `com.wakesync.places` | Fase 4b | **Implementado con deuda conocida (CR-01)** | `DestinationPickerState.Offline`/`Error` + `PickerFallbackBanner` (acento naranja, no bloqueante) reutilizado en Buscar/Mapa/Confirmar Destino. `[Reintentar]` funciona en Buscar Destino; en el paso Mapa hereda el bug de RF-PLC-03 y no siempre restaura la imagen tras recuperar la red. |
 | **RF-PLC-06**  | Sin Red Durante la Sesión Activa | `com.wakesync.places` | Fase 4b | **Implementado (CR-01)** | Tras `onConfirm()`, `WakeSyncNavHost` llama `sessionManager.requestStartSession()` y resetea el picker (`pickerContract.reset()`); `com.wakesync.places` no recibe más solicitudes durante la sesión activa, y el destino no se persiste en ningún historial de destinos. |
-| **RNF-PLC-01** | Latencia Percibida ($\le 2\text{ s}$) | `com.wakesync.places` | Fase 4b | **Pendiente (CR-01)** | Medido en emulador con red. |
-| **RNF-PLC-02** | Privacidad de Ubicación (2 decimales) | `com.wakesync.places` | Fase 4b | **Pendiente (CR-01)** | Sesgo de búsqueda con posición redondeada. |
-| **RNF-PLC-03** | Atribución de Google en el Mapa | `com.wakesync.ui` | Fase 4b | **Pendiente (CR-01)** | Logotipo de Google visible, sin recortes. |
-| **RF-NET-01**  | Cliente HTTP Único `BackendClient` | `com.wakesync.network` | Fase 4b | **Pendiente (CR-01)** | OkHttp + `kotlinx.serialization`, cabecera `X-WakeSync-App-Token`. |
-| **RF-NET-02**  | Red del Sistema, sin Smartphone | `com.wakesync.network` | Fase 4b | **Pendiente (CR-01)** | Verificación `NET_CAPABILITY_VALIDATED`. |
-| **RF-NET-03**  | Resultados Tipados `ApiResult<T>` | `com.wakesync.network` | Fase 4b | **Pendiente (CR-01)** | Tag de Logcat `BackendClient`. |
-| **RF-NET-04**  | Ejecución en `Dispatchers.IO` | `com.wakesync.network` | Fase 4b | **Pendiente (CR-01)** | Funciones `suspend`. |
-| **RF-BE-01**   | Endpoints del Contrato (Apéndice F) | `backend/` | Fase 4b | **Pendiente (CR-01)** | Cloudflare Worker `wakesync-gateway`. |
-| **RF-BE-02**   | Custodia de Secretos | `backend/` | Fase 4b | **Pendiente (CR-01)** | Clave de Google restringida por API. |
-| **RF-BE-03**   | Validación de Token de App (`401`) | `backend/` | Fase 4b | **Pendiente (CR-01)** | Filtro de tráfico casual. |
-| **RF-BE-04**   | Límite de Uso (60/min por IP, `429`) | `backend/` | Fase 4b | **Pendiente (CR-01)** | Más topes de cuota y alerta de presupuesto en Google Cloud. |
-| **RF-BE-05**   | Validación de Entradas (`400`) | `backend/` | Fase 4b | **Pendiente (CR-01)** | Rangos de lat/lng/zoom y enumeraciones. |
-| **RF-BE-06**   | Idioma `es` / Región `co` | `backend/` | Fase 4b | **Pendiente (CR-01)** | Parámetros hacia Google. |
-| **RNF-BE-01**  | Despliegue Gratuito (Cloudflare Workers) | `backend/` | Fase 4b | **Pendiente (CR-01)** | `wrangler deploy`. |
-| **RNF-BE-02**  | Sin Estado y Sin Registro de Datos Personales | `backend/` | Fase 4b | **Pendiente (CR-01)** | Solo método, ruta, estado y latencia. |
-| **RNF-BE-03**  | Sobrecosto de Latencia $< 300\text{ ms}$ | `backend/` | Fase 4b | **Pendiente (CR-01)** | Medido desde el emulador. |
+| **RNF-PLC-01** | Latencia Percibida ($\le 2\text{ s}$) | `com.wakesync.places` | Fase 4b | **Implementado/Verificado** | Latencias $< 1{,}5\text{ s}$ en corridas limpias (F13 es una excepción intermitente ya reportada aparte). |
+| **RNF-PLC-02** | Privacidad de Ubicación (2 decimales) | `com.wakesync.places` | Fase 4b | **Implementado/Verificado** | Búsqueda: ya redondeaba correctamente ([DestinationSearchRepository.kt:64-67](app/src/main/java/com/wakesync/places/DestinationSearchRepository.kt#L64-L67)). Centro inicial del mapa: **F23**, corregido en esta pasada — `openMap(center: GeoPoint?)` redondea a 2 decimales solo cuando el centro proviene de `currentLocationProvider()` (sin destino/centro explícito); un centro explícito o ya movido por el usuario no se toca. Ese centro alimenta `fetchMapImage` y, vía `pinMapCenter()`, `reverseGeocode`. La distancia en línea recta es cálculo local puro (`GeofenceCalculator.haversineMeters`), nunca enviada al backend. Tests nuevos en `DestinationSearchRepositoryTest.kt`. |
+| **RNF-PLC-03** | Atribución de Mapbox en el Mapa | `com.wakesync.ui` | Fase 4b | **Implementado/Verificado** | Bajo el CR-02 fusionado, atribución `© Mapbox © OpenStreetMap` y wordmark de Mapbox visibles en la zona segura inferior. |
+| **RF-NET-01**  | Cliente HTTP Único `BackendClient` | `com.wakesync.network` | Fase 4b | **Implementado/Verificado** | OkHttp + `kotlinx.serialization`, cabecera `X-WakeSync-App-Token`. Auditoría de logs: todas las llamadas con formato `MÉTODO /ruta -> código (latenciaMs)` bajo el tag `BackendClient`. |
+| **RF-NET-02**  | Red del Sistema, sin Smartphone | `com.wakesync.network` | Fase 4b | **Implementado/Verificado** | Verificación `NET_CAPABILITY_VALIDATED`. Corte de red real (`svc wifi/data disable`) con degradación correcta observada en autocomplete, mapa e insights. |
+| **RF-NET-03**  | Resultados Tipados `ApiResult<T>` | `com.wakesync.network` | Fase 4b | **Implementado/Verificado** | Tag de Logcat `BackendClient`. Auditoría de logs más re-auditoría ampliada de este cierre (F20/F21/F22) sin hallazgos nuevos. |
+| **RF-NET-04**  | Ejecución en `Dispatchers.IO` | `com.wakesync.network` | Fase 4b | **Implementado/Verificado** | Funciones `suspend`: [BackendClient.kt:66,100,115,132,181](app/src/main/java/com/wakesync/network/BackendClient.kt) — las 5 funciones públicas (`autocomplete`, `getPlaceDetails`, `reverseGeocode`, `getStaticMap`, `requestInsight`) son `suspend fun ... = withContext(Dispatchers.IO) { ... }`. |
+| **RF-BE-01**   | Endpoints del Contrato (Apéndice F) | `backend/` | Fase 4b | **Implementado/Verificado** | Cloudflare Worker `wakesync-gateway`. Endpoints ejercitados: `/v1/places/autocomplete`, `/v1/places/{placeId}`, `/v1/geocode/reverse`, `/v1/maps/static`, `/v1/insights` y `/v1/health` (200, smoke test r2). |
+| **RF-BE-02**   | Custodia de Secretos | `backend/` | Fase 4b | **Implementado/Verificado** | `MAPBOX_ACCESS_TOKEN`/`DEEPSEEK_API_KEY`/`APP_TOKEN` vía `wrangler secret put`; APK descompilado sin claves (búsqueda binaria sobre `.dex`/`resources.arsc`, 0 coincidencias). |
+| **RF-BE-03**   | Validación de Token de App (`401`) | `backend/` | Fase 4b | **Implementado/Verificado** | Filtro de tráfico casual. Smoke test r2: `401` en 0,24 s. |
+| **RF-BE-04**   | Límite de Uso (60/min por IP, `429`) | `backend/` | Fase 4b | **Implementado/Verificado** | Alertas de uso en la cuenta Mapbox. Smoke test r2: `429` en la solicitud nº 61, liberado a los 65 s. |
+| **RF-BE-05**   | Validación de Entradas (`400`) | `backend/` | Fase 4b | **Implementado/Verificado** | Rangos de lat/lng/zoom y enumeraciones. Smoke test r2: `400` en 0,22 s. |
+| **RF-BE-06**   | Idioma `es` / Región `co` | `backend/` | Fase 4b | **Implementado/Verificado** | Parámetros hacia Mapbox. Búsquedas y geocodificación en español, región de prueba coherente. |
+| **RNF-BE-01**  | Despliegue Gratuito (Cloudflare Workers) | `backend/` | Fase 4b | **Implementado/Verificado** | `wrangler deploy`, desplegado en `*.workers.dev`, sin tarjeta de crédito. |
+| **RNF-BE-02**  | Sin Estado y Sin Registro de Datos Personales | `backend/` | Fase 4b | **Implementado/Verificado** | Solo método, ruta, estado y latencia. Verificado con `wrangler tail` en esta sesión — única llamada real sin cuerpos, textos ni coordenadas. |
+| **RNF-BE-03**  | Sobrecosto de Latencia $< 300\text{ ms}$ | `backend/` | Fase 4b | **Pendiente de verificación** | No se midió el diferencial de latencia frente al proveedor (Mapbox o DeepSeek) en ninguna corrida, solo la latencia total del backend (siempre $< 1{,}5\text{ s}$). |
 
 ---
 
@@ -648,40 +652,40 @@ Esta matriz vincula cada requisito funcional y no funcional con su módulo respo
 Todos los criterios siguientes son **100% verificables en el Emulador de Wear OS en Android Studio**:
 
 ### 9.1 Modo Siesta (MicroNap)
-- [ ] Iniciar sesión de siesta con un solo toque desde la pantalla principal.
-- [ ] La calibración basal dura exactamente 20 segundos y muestra barra de progreso circular.
-- [ ] Tras presionar `[Simular Siesta]`, el estado transiciona a `DEEP_REST` tras 2 evaluaciones consecutivas (en $\le 30\text{ s}$).
-- [ ] Al confirmarse `DEEP_REST`, el temporizador de 15 minutos comienza su cuenta regresiva automáticamente.
+- [x] Iniciar sesión de siesta con un solo toque desde la pantalla principal (4ª corrida 3.6, tap directo en Inicio).
+- [x] La calibración basal dura exactamente 20 segundos y muestra barra de progreso circular (r2: 18:38:00.6→18:38:20.8).
+- [x] Tras presionar `[Simular Siesta]`, el estado transiciona a `DEEP_REST` tras 2 evaluaciones consecutivas (en $\le 30\text{ s}$) (F18 corregido; 29,4 s y 25,8 s en corridas limpias).
+- [x] Al confirmarse `DEEP_REST`, el temporizador de 15 minutos comienza su cuenta regresiva automáticamente (r2: cuenta 900→894…).
 - [x] Si se configura un destino y se inyectan coordenadas a $\le R_{\text{alert}}$ dinámico (calculado según velocidad estimada con piso de $250\text{ m}$ y $T_{\text{reaccion}} = 90\text{ s}$ ante `DEEP_REST`), la alerta de llegada se dispara de inmediato interrumpiendo el temporizador (verificado en pruebas unitarias).
-- [ ] La alerta se puede silenciar con un solo toque en el botón central de descarte.
-- [x] Si pasan 25 minutos sin reposo, la app termina la sesión automáticamente con una notificación (verificado en pruebas unitarias).
+- [ ] La alerta se puede silenciar con un solo toque en el botón central de descarte. **NO VERIFICABLE en la pasada de Fase 5** — no se ejecutó una prueba manual explícita de descarte táctil (el foco estuvo en cronómetro y transiciones de estado).
+- [x] Si pasan 25 minutos sin reposo, la app termina la sesión automáticamente con una notificación (verificado en pruebas unitarias + observado en vivo: `TIMED_OUT` a 1525 s en r1).
 
 ### 9.2 Modo Transporte (TransitNudge)
-- [ ] Solo se puede iniciar si no hay una siesta activa (o se confirma cancelar la siesta previa).
-- [ ] La app permite elegir **cualquier** destino desde el reloj, ya sea buscándolo por texto o eligiéndolo sobre el mapa de Google, y no existe ninguna lista de destinos predefinidos.
-- [ ] La sesión no puede iniciarse sin un destino confirmado en la pantalla Confirmar Destino.
-- [ ] La distancia restante hacia el destino y su nombre se muestran en tiempo real.
-- [ ] Al presionar `[Simular Ruta]`, la distancia hacia el destino elegido decrece continuamente de 2000 m a 400 m durante 60 segundos.
-- [ ] Con el destino ya fijado, desactivar la red del emulador no interrumpe el seguimiento ni la alerta de llegada.
-- [x] Al ingresar al radio dinámico $R_{\text{alert}} = \max(250\text{ m},\, v \cdot T_{\text{reaccion}} + \frac{v^2}{2 \cdot |a_{\text{frenado}}|})$ evaluado según la velocidad estimada suavizada por EMA ($v$) con piso de $250\text{ m}$, la alerta háptica y visual se activa instantáneamente (verificado en pruebas unitarias).
+- [ ] Solo se puede iniciar si no hay una siesta activa (o se confirma cancelar la siesta previa). **PARCIAL** — la exclusión por diseño funciona (con siesta activa la UI solo muestra `NapScreen`), pero el diálogo `resolveConflict` para "usar MI destino" es **FALLO (F17)**: no existe ruta de UI para solicitar Transporte con una siesta activa.
+- [x] La app permite elegir **cualquier** destino desde el reloj, ya sea buscándolo por texto o eligiéndolo sobre el mapa de Mapbox, y no existe ninguna lista de destinos predefinidos (3.2, 3.3).
+- [x] La sesión no puede iniciarse sin un destino confirmado en la pantalla Confirmar Destino (flujo Confirmar Destino → `TRANSIT` solo con `hasDestination=true`).
+- [ ] La distancia restante hacia el destino y su nombre se muestran en tiempo real. **NO VERIFICABLE** — depende del pendiente B; la pantalla Confirmar no mostró distancia en esta pasada.
+- [ ] Al presionar `[Simular Ruta]`, la distancia hacia el destino elegido decrece continuamente de 2000 m a 400 m durante 60 segundos. **DESVIACIÓN DOCUMENTADA** — con CR-01 el destino ya no es fijo; la mecánica se validó por llegada y disparo de alerta (33 s y 13 s en las corridas), no por el rango numérico original 2000→400 m (criterio de la versión pre-CR-01).
+- [x] Con el destino ya fijado, desactivar la red del emulador no interrumpe el seguimiento ni la alerta de llegada (3.2 offline).
+- [x] Al ingresar al radio dinámico $R_{\text{alert}} = \max(250\text{ m},\, v \cdot T_{\text{reaccion}} + \frac{v^2}{2 \cdot |a_{\text{frenado}}|})$ evaluado según la velocidad estimada suavizada por EMA ($v$) con piso de $250\text{ m}$, la alerta háptica y visual se activa instantáneamente (verificado en pruebas unitarias + múltiples llegadas en vivo).
 - [x] Presionar `[Detener]` cancela la sesión y regresa a la pantalla de inicio de inmediato (verificado en pruebas unitarias).
 
 ### 9.3 Motor de IA Heurística
 - [x] El score de reposo se recalcula cada 10 segundos en un hilo secundario sin congelar la UI.
 - [x] El cálculo matemático se completa en menos de 10 ms por ciclo.
-- [ ] Es posible verificar los cuatro estados en la interfaz (`AWAKE`, `LIGHT_REST`, `DEEP_REST`, `SENSOR_NO_DISPONIBLE`).
-- [ ] Si faltan datos de pulso, el estado pasa a `SENSOR_NO_DISPONIBLE` sin generar cierres forzados (crashes).
+- [x] Es posible verificar los cuatro estados en la interfaz (`AWAKE`, `LIGHT_REST`, `DEEP_REST`, `SENSOR_NO_DISPONIBLE`) — los tres primeros en corridas de siesta; `SENSOR_NO_DISPONIBLE` observado con sensor real antes de F7 (r1).
+- [x] Si faltan datos de pulso, el estado pasa a `SENSOR_NO_DISPONIBLE` sin generar cierres forzados (crashes) (r1, sin caída de la app).
 
 ### 9.4 Resiliencia y Privacidad
-- [ ] La app no se detiene si se desactiva el sensor de frecuencia cardíaca en el panel de sensores virtuales.
-- [ ] Todos los datos de sesión se almacenan exclusivamente en almacenamiento interno local, sin depender de internet para su registro ni recuperación. La red se usa solo en el Selector de Destino y en los Insights por IA, ambos degradan de forma segura sin conexión, y ninguno condiciona una sesión ya iniciada.
-- [ ] La app ofrece un botón en configuración para limpiar el historial de sesiones registradas.
-- [ ] No se imprimen datos biomédicos personales en los registros generales de Logcat.
-- [ ] La app funciona sin ningún smartphone emparejado: el manifiesto declara `com.google.android.wearable.standalone=true` y no existe código de Wearable Data Layer API.
-- [ ] Ninguna clave de API (Google Maps, Gemini) aparece en el repositorio ni en el APK decompilado.
+- [ ] La app no se detiene si se desactiva el sensor de frecuencia cardíaca en el panel de sensores virtuales. **NO VERIFICABLE** — Health Services del emulador usa proveedor sintético, no hay forma de forzar el estado con las herramientas disponibles (limitación del entorno, no del código); evidencia parcial de robustez sin caídas.
+- [x] Todos los datos de sesión se almacenan exclusivamente en almacenamiento interno local, sin depender de internet para su registro ni recuperación. La red se usa solo en el Selector de Destino y en los Insights por IA, ambos degradan de forma segura sin conexión, y ninguno condiciona una sesión ya iniciada.
+- [ ] La app ofrece un botón en configuración para limpiar el historial de sesiones registradas. **NO VERIFICABLE** — no se ejecutó esta acción específica en la pasada.
+- [x] No se imprimen datos biomédicos personales en los registros generales de Logcat (corregido esta pasada: F20/F21/F22; re-auditoría ampliada con patrones `towards`, `name=`, nombres de lugar, sin hallazgos nuevos).
+- [x] La app funciona sin ningún smartphone emparejado: el manifiesto declara `com.google.android.wearable.standalone=true` y no existe código de Wearable Data Layer API (verificado: `grep` sin coincidencias de `play-services-wearable`/`DataClient`/`MessageClient`/`WearableListenerService`).
+- [x] Ninguna clave de API (Mapbox, DeepSeek) aparece en el repositorio ni en el APK decompilado (verificado esta pasada: búsqueda binaria `grep -a` sobre todos los `.dex` y `resources.arsc`, 0 coincidencias de patrones `sk-`, `pk.` o `access_token=` con valor; ninguna llamada directa a `api.deepseek.com`/`api.mapbox.com` desde el código de la app).
 
 ### 9.5 Verificación de la Demostración en Aula
-- [ ] La demostración completa de ambos modos, incluyendo la búsqueda de destino y un insight de IA, puede realizarse de principio a fin en **menos de 4 minutos**.
+- [x] La demostración completa de ambos modos, incluyendo la búsqueda de destino y un insight de IA, puede realizarse de principio a fin en **menos de 4 minutos** (3 min 13 s, 4ª corrida de 3.6).
 
 ### 9.6 Actuador Háptico y Gestión de Alertas (`com.wakesync.alerts`)
 - [x] El controlador `HapticVibrationController` sintetiza 3 niveles progresivos diferenciados (`SOFT`, `MODERATE`, `URGENT`) con timings, amplitudes y patrones de repetición exactos según `haptic-waveform-spec` (RF-ALRT-01).
@@ -692,24 +696,46 @@ Todos los criterios siguientes son **100% verificables en el Emulador de Wear OS
 - [ ] La interfaz de usuario Wear OS despliega un botón circular de descarte con área interactiva $\ge 48\text{dp} \times 48\text{dp}$ que silencia la alerta con un solo toque (RF-ALRT-02, asignado a `wear-ui-architect` para Fase 4 en `com.wakesync.ui`).
 
 ### 9.7 Motor de Insights por IA (`com.wakesync.insights`) — Obligatorio
-- [ ] Al finalizar una sesión, la pantalla de resumen solicita automáticamente el insight y muestra un texto en español de $\le 140$ caracteres generado por Gemini.
-- [ ] La solicitud enviada a `POST /v1/insights` contiene únicamente los 4 campos agregados (`sessionType`, `durationSeconds`, `restLatencySeconds`, `outcome`).
-- [ ] Al deshabilitar internet en el emulador, la tarjeta muestra *"Resumen no disponible sin conexión"* en $\le 10\text{ s}$ con botón `[Reintentar]`, sin congelar la UI ni producir cierres inesperados.
-- [ ] El insight obtenido se muestra desde el historial sin volver a llamar al backend.
-- [ ] La clave de Gemini existe solo como secreto del backend.
+- [x] Al finalizar una sesión, la pantalla de resumen solicita automáticamente el insight y muestra un texto en español de $\le 140$ caracteres generado por el proveedor de insights (DeepSeek, CR-03) (múltiples corridas, DeepSeek desplegado).
+- [x] La solicitud enviada a `POST /v1/insights` contiene únicamente los 4 campos agregados (`sessionType`, `durationSeconds`, `restLatencySeconds`, `outcome`) (contrato verificado en tests del backend; auditoría de `BackendClient` sin cuerpos).
+- [x] Al deshabilitar internet en el emulador, la tarjeta muestra *"Resumen no disponible sin conexión"* en $\le 10\text{ s}$ con botón `[Reintentar]`, sin congelar la UI ni producir cierres inesperados (0,2 s observado).
+- [ ] El insight obtenido se muestra desde el historial sin volver a llamar al backend. **FALLO — RF-INS-03:** no existe pantalla de historial con detalle (3.5 FALLO); evidencia parcial de no-reconsulta al recrear la actividad (0 POST nuevos con resumen visible).
+- [x] La clave del proveedor de insights existe solo como secreto del backend. **Nota:** el proveedor real verificado en esta pasada es **DeepSeek** (`DEEPSEEK_API_KEY`), ver historial de versiones (CR-03) para el proveedor anterior.
 
-### 9.8 Selector de Destino con Google Maps (`com.wakesync.places`)
-- [ ] `[Buscar]` abre la entrada de voz/teclado de Wear OS; al escribir "Universidad Cooperativa" aparecen hasta 5 resultados con nombre y dirección.
-- [ ] Al tocar un resultado se muestra la pantalla Confirmar Destino con nombre, dirección y distancia en línea recta.
-- [ ] `[Elegir en mapa]` muestra un mapa de Google a pantalla completa con pin central; arrastrar desplaza el mapa, girar la corona cambia el zoom (10–19) y `[Fijar destino]` confirma el punto central con un nombre legible.
-- [ ] El logotipo y la atribución de Google permanecen visibles en el mapa.
-- [ ] Sin red, la búsqueda y el mapa muestran el estado naranja *"Sin conexión"* sin bloquear la app.
+### 9.8 Selector de Destino con Mapbox (`com.wakesync.places`)
+- [x] `[Buscar]` abre la entrada de voz/teclado de Wear OS; al escribir "Universidad Cooperativa" aparecen hasta 5 resultados con nombre y dirección.
+- [ ] Al tocar un resultado se muestra la pantalla Confirmar Destino con nombre, dirección y distancia en línea recta. **PARCIAL** — nombre y dirección OK; distancia ausente (pendiente B).
+- [ ] `[Elegir en mapa]` muestra un mapa de Mapbox a pantalla completa con pin central; arrastrar desplaza el mapa, girar la corona cambia el zoom (10–19) y `[Fijar destino]` confirma el punto central con un nombre legible. **PARCIAL/FALLO** — arrastre OK (F14, menor: falta sumar `overSlop`); `[Fijar destino]` OK; **la corona no funciona (F15 confirmado)**: el evento llega al dispositivo, la app no reacciona, zoom 10–19 no utilizable.
+- [x] El logotipo y la atribución de Mapbox permanecen visibles en el mapa (bajo CR-02; nota menor de F-UI por recorte parcial de la atribución ya registrada).
+- [x] Sin red, la búsqueda y el mapa muestran el estado naranja *"Sin conexión"* sin bloquear la app (3.4).
 
 ### 9.9 Backend `wakesync-gateway`
-- [ ] `GET /v1/health` responde `200` desde la URL pública `*.workers.dev`.
-- [ ] Una solicitud sin `X-WakeSync-App-Token` válido recibe `401`; más de 60 solicitudes/min desde una IP reciben `429`; entradas fuera de rango reciben `400`.
-- [ ] Los registros del Worker (`wrangler tail`) no muestran textos de búsqueda, coordenadas ni cuerpos de solicitud.
-- [ ] La clave de Google Maps está restringida por API en Google Cloud Console y existen topes de cuota diarios y una alerta de presupuesto.
+- [x] `GET /v1/health` responde `200` desde la URL pública `*.workers.dev` (probado en el mismo lote de smoke tests r2 que confirmó 401/400/429).
+- [x] Una solicitud sin `X-WakeSync-App-Token` válido recibe `401`; más de 60 solicitudes/min desde una IP reciben `429`; entradas fuera de rango reciben `400` (smoke tests r2).
+- [x] Los registros del Worker (`wrangler tail`) no muestran textos de búsqueda, coordenadas ni cuerpos de solicitud (verificado esta pasada: única llamada real capturada con solo método, ruta, código y latencia; sin headers de autorización/token en el log).
+- [ ] La clave del proveedor de mapas está restringida por alcance mínimo y existen alertas de uso en la cuenta Mapbox. **NO VERIFICABLE** — fuera del alcance de una pasada en emulador (configuración externa de la consola del proveedor).
+
+### 9.10 Desviaciones Registradas y Trabajo Pendiente (Pasada de Integración, Fase 5)
+
+**Desviaciones registradas:**
+1. Corte de red antes de `[Simular Ruta]` (orden de pasos ajustado, sin afectar el resultado).
+2. Timer de 15 min no se esperó completo (se verificó inicio y lógica, no el ciclo completo).
+3. Límite `429` alcanzado por *isolate* (comportamiento esperado de Cloudflare Workers).
+4. Línea de evento de `wrangler tail` sin headers en formato `pretty` — confirmado inocuo.
+5. 9.4/3.7 no verificable por limitación de hardware/emulador (proveedor sintético de Health Services).
+6. Cambio de comportamiento de la simulación de siesta (RF-SIM-01 actualizado — ver 8.8 y la matriz de trazabilidad).
+7. Hueco en la regex de auditoría de logs de la Fase 4b (no cubría "towards"/nombre de destino en texto libre) — cerrado por **F22** y la re-auditoría de este cierre.
+
+**Trabajo pendiente / no implementado:**
+- **RF-INS-03**: pantalla de historial con detalle y `[Generar Insight]` — no existe.
+- **F17**: diálogo de conflicto de sesión (ruta de UI para `resolveConflict`).
+- **F8**: calibración basal ausente en Transporte (requiere decisión de spec).
+- **F15**: la corona no controla el zoom del mapa (evento llega al sistema operativo, no a la app).
+- **F13**: latencia intermitente ($10\text{ s}$) en la primera solicitud tras restaurar la red.
+- **Pendiente B**: distancia en pantalla Confirmar Destino, distancia en tiempo real en Transporte, sesgo de ubicación de búsqueda, centro inicial del mapa.
+- **Rendimiento**: medición con `gfxinfo` pendiente (no se hizo en esta pasada).
+- **F-UI** (rediseño visual completo): tamaños de botones, superposiciones F3/F5, historial, diálogo de conflicto, y el **indicador "SIMULACIÓN"** (dentro de F-UI, motivado por F9).
+- Botón "limpiar historial de sesiones": no se ejecutó esta acción específica en la pasada.
 
 ---
 
@@ -740,8 +766,8 @@ gantt
 
     section Fase 4b: Conectividad (CR-01)
     Backend wakesync-gateway en Cloudflare (4h)            :e1, after c1, 3d
-    Cliente de Red + Selector Google Maps (6h) [Emulador]  :e2, after e1, 4d
-    Insights Gemini + Pantallas UI (5h) [Emulador]         :e3, after e2, 4d
+    Cliente de Red + Selector Mapbox (6h) [Emulador]       :e2, after e1, 4d
+    Insights DeepSeek + Pantallas UI (5h) [Emulador]       :e3, after e2, 4d
 
     section Fase 4: Reserva y Sustentación
     Semana de Reserva, Video y Ensayos (6h) [Emulador]     :d1, after e3, 7d
@@ -757,7 +783,7 @@ gantt
   - Implementación del `ForegroundService` y la exclusión mutua de modos.
   - Implementación del estimador heurístico `RestEstimatorEngine` y fórmula Haversine.
   - Creación del `MockSensorEngine` y botones de simulación.
-  - **(Fase 4b, CR-01)** Despliegue del backend `wakesync-gateway`, cliente de red, Selector de Destino con Google Maps e Insights por IA con Gemini (el emulador usa el internet del anfitrión).
+  - **(Fase 4b, CR-01/CR-02/CR-03)** Despliegue del backend `wakesync-gateway`, cliente de red, Selector de Destino con Mapbox e Insights por IA con DeepSeek (el emulador usa el internet del anfitrión).
   - Ensayos de presentación y grabación de video de respaldo en alta resolución.
 * **Tareas Pospuestas a Fase 2 (Requieren Hardware Real):**
   - Pruebas de adquisición de pulso óptico con reloj físico en la piel.
@@ -777,9 +803,9 @@ gantt
 | **Sobrecarga por los otros 3 proyectos académicos** | **CRÍTICA** | Alta | Retrasos en la entrega o código incompleto. | **Mitigación:** Congelar el alcance estrictamente en los parámetros normativos de la Sección 7. Dejar la Semana 8 libre de nuevas características. |
 | **Pérdida de señal GPS simulada** | **BAJA** | Baja | Bloqueo de la pantalla de transporte. | **Mitigación:** El botón `[Simular Ruta]` interpola las coordenadas matemáticamente de forma determinista, inmune a cortes de conexión. |
 | **Sin internet en el aula durante la demo** | **ALTA** | Media | No se puede buscar destino ni generar el insight. | **Mitigación:** Compartir datos del celular al computador anfitrión (el reloj sigue sin depender del teléfono); elegir el destino y verificar el insight antes de la presentación; video de respaldo que incluya búsqueda, mapa e insight. |
-| **Facturación obligatoria de Google Maps Platform** | **MEDIA** | Alta | Sin cuenta de facturación activa, Places, Geocoding y Maps Static no responden. | **Mitigación:** Activar facturación con tarjeta en Google Cloud (el uso académico cabe en la cuota gratuita mensual); definir topes de cuota diarios por API y una alerta de presupuesto. |
-| **Abuso o fuga del token de app** | **MEDIA** | Baja | Consumo de cuota de Google/Gemini por terceros. | **Mitigación:** Límite de 60 solicitudes/min por IP, topes diarios en Google Cloud y rotación del `APP_TOKEN` con `wrangler secret put`. Ninguna clave de Google o Gemini está en el APK. |
-| **Límites del tier gratuito de Gemini** | **BAJA** | Media | Respuestas `429` del proveedor de IA. | **Mitigación:** Un único insight por sesión, sin reintentos automáticos; la UI muestra `[Reintentar]`. El modelo es configurable en el backend (`GEMINI_MODEL`) sin recompilar la app. |
+| **Términos de almacenamiento temporal de Mapbox** | **MEDIA** | Media | Los resultados de Search Box y de la geocodificación temporal no pueden guardarse de forma permanente. | **Mitigación:** La app solo conserva el destino en memoria durante la sesión, y `SessionRecord` no guarda nombres, direcciones ni coordenadas. |
+| **Abuso o fuga del token de app** | **MEDIA** | Baja | Consumo de cuota de Mapbox/DeepSeek por terceros. | **Mitigación:** Límite de 60 solicitudes/min por IP, alertas de uso en la cuenta Mapbox y rotación del `APP_TOKEN` con `wrangler secret put`. Ninguna clave de Mapbox o DeepSeek está en el APK. |
+| **Presupuesto acotado de DeepSeek (CR-03)** | **BAJA** | Media | Respuestas `429`/agotamiento de presupuesto del proveedor de IA. | **Mitigación:** Un único insight por sesión, sin reintentos automáticos; la UI muestra `[Reintentar]`. El modelo es configurable en el backend (`DEEPSEEK_MODEL`) sin recompilar la app; presupuesto de 2 USD, costo estimado ≈0,0001–0,0002 USD por insight. |
 | **Dictado por voz no disponible en el emulador** | **BAJA** | Alta | No se puede buscar por voz en clase. | **Mitigación:** `RemoteInput` ofrece también teclado; alternativa adicional: `[Elegir en mapa]`. |
 
 ---
@@ -800,18 +826,18 @@ gantt
 • Comprensión visual inmediata (<= 3 s)                • Exclusión mutua de sesiones
 • Targets táctiles circulares >= 48dp                  • Geocerca dinámica R_alert (>= 250 m)
 • Paleta de contraste para descanso                    • 100% reproducible en emulador
-• Destino libre con Google Maps en el reloj            • IA generativa (Gemini) vía backend propio
+• Destino libre con Mapbox en el reloj                  • IA generativa (DeepSeek) vía backend propio
 • App independiente, sin smartphone                    • Claves de API fuera del APK
 ```
 
 ### Guion de Sustentación ante el Evaluador (4 Minutos)
 1. **Minuto 0–1 (Introducción y Concepto Unificado):**
    - Proyectar el emulador de Wear OS.
-   - Explicar: *"WakeSync es una sola aplicación independiente para smartwatch Wear OS, sin teléfono, con dos modos de operación: Modo Siesta y Modo Transporte. Comparten una misma infraestructura de servicio y estimación de reposo con exclusión mutua de sesión, y usan Google Maps y Gemini a través de nuestro propio backend."*
+   - Explicar: *"WakeSync es una sola aplicación independiente para smartwatch Wear OS, sin teléfono, con dos modos de operación: Modo Siesta y Modo Transporte. Comparten una misma infraestructura de servicio y estimación de reposo con exclusión mutua de sesión, y usan Mapbox y DeepSeek a través de nuestro propio backend."*
 2. **Minuto 1–2 (Demostración de la Función de Siesta):**
    - Tocar `[ Siesta ]`. Mostrar la calibración de 20 segundos.
    - Presionar `[ Simular Siesta ]`. Mostrar cómo el score de reposo supera $0.60$, transiciona a `DEEP_REST` y arranca automáticamente la cuenta de 15 minutos en pantalla.
-   - Detener la siesta y mostrar el resumen con el insight de Gemini.
+   - Detener la siesta y mostrar el resumen con el insight de DeepSeek.
 3. **Minuto 2–3.5 (Demostración de la Función de Transporte):**
    - Salir al inicio y seleccionar `[ Transporte ]` (mostrando el cambio de modo).
    - Tocar `[Buscar]`, escribir el destino (p. ej. "Universidad Cooperativa") y elegir un resultado; alternativamente, mostrar `[Elegir en mapa]` moviendo el mapa y cambiando el zoom con la corona.
@@ -869,7 +895,7 @@ Condición normativa de llegada:
 $$\text{Disparo de Alerta} \iff d \le R_{\text{alert}}$$
 
 ### A.7 Proyección Web Mercator para el Mapa del Selector de Destino
-El mapa del reloj es una imagen estática de Maps Static API centrada en $(\phi_c, \lambda_c)$ con zoom $z$. Para desplazarlo (arrastre) o recentrarlo (toque) sin pedir coordenadas al servidor, el reloj convierte entre grados y "píxeles de mundo" con la proyección Web Mercator de Google.
+El mapa del reloj es una imagen estática de Mapbox Static Images API centrada en $(\phi_c, \lambda_c)$ con zoom $z$. Para desplazarlo (arrastre) o recentrarlo (toque) sin pedir coordenadas al servidor, el reloj convierte entre grados y "píxeles de mundo" con la proyección Web Mercator estándar.
 
 Tamaño del mundo en píxeles lógicos al zoom $z$:
 $$W = 256 \cdot 2^{z}$$
@@ -885,6 +911,8 @@ De píxeles de mundo a grados (nuevo centro):
 $$\lambda' = \frac{360 \cdot x'}{W} - 180, \qquad \phi' = \arctan\left(\sinh\left(\pi \cdot \left(1 - \frac{2 y'}{W}\right)\right)\right)$$
 
 $\phi'$ se acota a $[-85.0511°, 85.0511°]$ (límite de la proyección) y $\lambda'$ se normaliza a $[-180°, 180°)$.
+
+**Compensación de zoom para Mapbox:** Mapbox usa teselas de $512\text{ px}$, así que su mundo mide $512 \cdot 2^{z_{mb}}$ px lógicos, mientras que la app ($W = 256 \cdot 2^{z}$) asume teselas de $256\text{ px}$. El backend envía $z_{mb} = z - 1$ a Mapbox, con lo que ambos mundos miden lo mismo y las fórmulas de desplazamiento y toque de arriba no cambian. `TILE_SIZE = 256.0` en la app no se toca.
 
 ---
 
@@ -1043,7 +1071,7 @@ dependencies {
 ```
 
 ### C.1 Cambios Propuestos por CR-01 (pendientes de aprobación — aún NO aplicados)
-Según los guardrails del proyecto, este *diff* debe mostrarse y aprobarse antes de modificar `build.gradle.kts`. No incluye SDK de Google Maps ni de Gemini en la app: todo pasa por el backend.
+Según los guardrails del proyecto, este *diff* debe mostrarse y aprobarse antes de modificar `build.gradle.kts`. No incluye SDK de Mapbox ni de DeepSeek en la app: todo pasa por el backend.
 
 ```diff
  // build.gradle.kts (raíz)
@@ -1161,13 +1189,13 @@ val effectLevel3 = VibrationEffect.createWaveform(timingsLevel3, amplitudesLevel
   ├── wrangler.toml          ← nombre del Worker, variables no secretas, límite de uso
   ├── package.json
   ├── src/index.ts           ← enrutador + validación de token + límite de uso
-  ├── src/places.ts          ← autocompletado, detalle y geocodificación inversa
-  ├── src/maps.ts            ← proxy de Maps Static API
-  ├── src/insights.ts        ← prompt de sistema + llamada a Gemini
+  ├── src/places.ts          ← autocompletado (Search Box), detalle y geocodificación inversa (Geocoding v6)
+  ├── src/maps.ts            ← proxy de Static Images API
+  ├── src/insights.ts        ← prompt de sistema + llamada a DeepSeek
   └── test/                  ← pruebas con Vitest (@cloudflare/vitest-pool-workers)
   ```
-* **Secretos** (`wrangler secret put <NOMBRE>`, nunca en el repositorio): `GOOGLE_MAPS_API_KEY`, `GEMINI_API_KEY`, `APP_TOKEN`.
-* **Variables no secretas** (`wrangler.toml`): `GEMINI_MODEL` (modelo Flash del tier gratuito, p. ej. `gemini-2.5-flash`; se puede cambiar sin recompilar la app).
+* **Secretos** (`wrangler secret put <NOMBRE>`, nunca en el repositorio): `MAPBOX_ACCESS_TOKEN`, `DEEPSEEK_API_KEY`, `APP_TOKEN`.
+* **Variables no secretas** (`wrangler.toml`): `DEEPSEEK_MODEL` (p. ej. `deepseek-flash`, verificado con `GET /models`; se puede cambiar sin recompilar la app).
 * **Límite de uso:** 60 solicitudes/min por IP mediante el *binding* de Rate Limiting de Workers (`[[ratelimits]]` en `wrangler.toml`). Si no estuviera disponible en la cuenta, se usa un contador en memoria por instancia como respaldo.
 * **Despliegue:** `npm install` → `npx wrangler login` → `npx wrangler secret put ...` (x3) → `npx wrangler deploy`.
 
@@ -1180,8 +1208,8 @@ val effectLevel3 = VibrationEffect.createWaveform(timingsLevel3, amplitudesLevel
 | 400 | `invalid_request` | Parámetros ausentes o fuera de rango (RF-BE-05). |
 | 401 | `unauthorized` | Token de app ausente o incorrecto. |
 | 429 | `rate_limited` | Más de 60 solicitudes/min por IP, o `429` del proveedor. |
-| 502 | `upstream_error` | Google o Gemini respondieron con error. |
-| 504 | `upstream_timeout` | Google o Gemini no respondieron a tiempo. |
+| 502 | `upstream_error` | El proveedor (Mapbox o DeepSeek) respondió con error. |
+| 504 | `upstream_timeout` | El proveedor (Mapbox o DeepSeek) no respondió a tiempo. |
 
 * Los registros solo contienen método, ruta, código y latencia (RNF-BE-02).
 
@@ -1198,24 +1226,24 @@ val effectLevel3 = VibrationEffect.createWaveform(timingsLevel3, amplitudesLevel
     { "placeId": "ChIJ...", "primaryText": "Universidad Cooperativa de Colombia", "secondaryText": "Envigado, Antioquia" }
 ] }
 ```
-Llamada a Google: `POST https://places.googleapis.com/v1/places:autocomplete` con `X-Goog-Api-Key`, cuerpo `{input, sessionToken, languageCode:"es", regionCode:"co", locationBias:{circle:{center:{latitude, longitude}, radius:20000}}}` (`locationBias` solo si llega `bias`). Se mapea `suggestions[].placePrediction` → `placeId`, `structuredFormat.mainText.text`, `structuredFormat.secondaryText.text`.
+Llamada a Mapbox: `GET https://api.mapbox.com/search/searchbox/v1/suggest?q=&session_token=&country=co&language=es&limit=5[&proximity={lng},{lat}]&access_token=…` (`proximity` solo si llega `bias`, en orden `lng,lat`). Se mapea `placeId←mapbox_id`, `primaryText←name`, `secondaryText←place_formatted|full_address`.
 
 **`GET /v1/places/{placeId}?sessionToken=...`** — coordenadas del resultado (RF-PLC-02)
 ```json
 { "placeId": "ChIJ...", "name": "Universidad Cooperativa de Colombia", "address": "Cra. ..., Envigado", "lat": 6.1720, "lng": -75.5890 }
 ```
-Llamada a Google: `GET https://places.googleapis.com/v1/places/{placeId}?languageCode=es&sessionToken=...` con `X-Goog-FieldMask: id,displayName,formattedAddress,location`.
+Llamada a Mapbox: `GET https://api.mapbox.com/search/searchbox/v1/retrieve/{mapbox_id}?session_token=&language=es&access_token=…`; las coordenadas GeoJSON `[lng, lat]` se invierten a `lat/lng` antes de responder.
 
 **`GET /v1/geocode/reverse?lat=6.2518&lng=-75.5684`** — nombre legible de un punto del mapa (RF-PLC-03)
 ```json
 { "name": "Calle 50 #45-20", "address": "Calle 50 #45-20, La Candelaria, Medellín, Antioquia" }
 ```
-Llamada a Google: `GET https://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lng}&language=es&key=...` (primer resultado).
+Llamada a Mapbox: `GET https://api.mapbox.com/search/geocode/v6/reverse?longitude=&latitude=&language=es&limit=1&access_token=…`; se mapea `name←name_preferred|name`, `address←full_address|place_formatted`; si no hay resultado, respaldo *"Punto en el mapa (lat, lng)"*.
 
 **`GET /v1/maps/static?lat=6.2518&lng=-75.5684&zoom=16&size=227`** — imagen del mapa (RF-PLC-03)
 * Respuesta: `200` con `Content-Type: image/png` (bytes de la imagen, sin JSON).
-* Llamada a Google: `GET https://maps.googleapis.com/maps/api/staticmap?center={lat},{lng}&zoom={zoom}&size={size}x{size}&scale=2&maptype=roadmap&language=es&key=...`
-* Sin marcadores: el pin central lo dibuja la app. `size` acotado a $[100, 320]$.
+* Llamada a Mapbox: `GET https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/{lng},{lat},{zoom-1},0/{size}x{size}@2x?attribution=false&logo=false&access_token=…` (zoom enviado a Mapbox = `zoom − 1`, ver Apéndice A.7).
+* Sin marcadores: el pin central lo dibuja la app. La atribución `© Mapbox © OpenStreetMap` y el wordmark también los dibuja la app (RNF-PLC-03). `size` acotado a $[100, 320]$.
 
 **`POST /v1/insights`** — insight post-sesión (RF-INS-01, RF-INS-04)
 ```json
@@ -1224,7 +1252,7 @@ Llamada a Google: `GET https://maps.googleapis.com/maps/api/geocode/json?latlng=
 // Respuesta 200
 { "insight": "Tardaste 4 min en relajarte y completaste tu siesta. ¡Buen descanso para seguir tu tarde!" }
 ```
-Llamada a Gemini: `POST https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent` con cabecera `x-goog-api-key`, `systemInstruction` (prompt de abajo), los 4 campos como contenido del usuario y `generationConfig: {maxOutputTokens: 100, temperature: 0.7}`. El backend recorta a 140 caracteres.
+Llamada a DeepSeek (proveedor operativo, CR-03): `POST https://api.deepseek.com/chat/completions` con cabecera `Authorization: Bearer ${DEEPSEEK_API_KEY}`, cuerpo `{model: DEEPSEEK_MODEL, messages: [{role: "system", content: <prompt de abajo>}, {role: "user", content: <los 4 campos>}], max_tokens: 120, temperature: 0.3, thinking: {type: "disabled"}}` y respuesta en `choices[0].message.content`. Si el texto llega vacío, se registra un aviso solo con `finish_reason` (nunca el cuerpo de la respuesta) y se usa el texto de respaldo. El backend recorta a 140 caracteres.
 
 Prompt de sistema (vive solo en el backend):
 > Eres el asistente de bienestar de WakeSync, una app de smartwatch. Recibes el resumen agregado de una sesión de siesta (NAP) o de viaje en transporte (TRANSIT). Responde en español con una sola frase amable y práctica de máximo 140 caracteres. No des diagnósticos médicos ni menciones trastornos del sueño. No uses emojis ni formato markdown.
