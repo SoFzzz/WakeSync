@@ -77,7 +77,14 @@
     <string name="settings_permissions_missing">Faltan permisos requeridos</string>
     <string name="settings_simulation_title">Modo Simulación</string>
     <string name="settings_simulation_desc">Usa datos sintéticos para evaluación</string>
+    <string name="settings_simulation_on">Estado: Simulado (activo)</string>
+    <string name="settings_simulation_off">Estado: Sensores reales (inactivo)</string>
     <string name="settings_app_info">WakeSync Wear OS v1.0.0</string>
+
+    <!-- Historial (placeholder, Etapa 3 — pantalla real en Etapa 7, RF-INS-03) -->
+    <string name="title_history">Historial</string>
+    <string name="history_subtitle_home">Ver sesiones anteriores</string>
+    <string name="history_empty_state">Aún no hay sesiones</string>
 
     <!-- Destination Picker: Buscar Destino (CR-01, RF-PLC-01/02) -->
     <string name="title_dest_search">Buscar Destino</string>

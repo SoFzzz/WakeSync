@@ -34,11 +34,13 @@ import com.wakesync.core.session.SessionManager
 import com.wakesync.ui.components.ActiveAlertOverlay
 import com.wakesync.ui.components.CircularProgressArc
 import com.wakesync.ui.components.ConflictDialog
+import com.wakesync.ui.components.DismissibleScreen
 import com.wakesync.ui.components.PickerFallbackBanner
 import com.wakesync.ui.format.UiFormatters
 import com.wakesync.ui.screens.ConfirmDestinationScreen
 import com.wakesync.ui.screens.DestinationMapScreen
 import com.wakesync.ui.screens.DestinationSearchScreen
+import com.wakesync.ui.screens.HistoryScreen
 import com.wakesync.ui.screens.HomeScreen
 import com.wakesync.ui.screens.NapScreen
 import com.wakesync.ui.screens.SessionSummaryScreen
@@ -77,6 +79,7 @@ fun WakeSyncNavHost(
 ) {
     val coroutineScope = rememberCoroutineScope()
     var isSettingsOpen by remember { mutableStateOf(false) }
+    var isHistoryOpen by remember { mutableStateOf(false) }
 
     // --- Buscar/Mapa/Confirmar Destino flow (CR-01) ---
     var destinationPickerFor by remember { mutableStateOf<SessionType?>(null) }
@@ -140,19 +143,26 @@ fun WakeSyncNavHost(
         // Base Navigation Layer
         when {
             state.sessionType == SessionType.NAP -> {
-                NapScreen(
-                    state = state,
-                    onStopSession = { sessionManager.endSession(SessionOutcome.CANCELLED) },
-                    onSimulateNap = onSimulateNap
-                )
+                // Active session: swipe is absorbed here (never reaches the system-level
+                // dismiss) but deliberately does nothing (enabled = false) — a stray edge
+                // swipe must not end an in-progress Siesta.
+                DismissibleScreen(onBack = {}, enabled = false) {
+                    NapScreen(
+                        state = state,
+                        onStopSession = { sessionManager.endSession(SessionOutcome.CANCELLED) },
+                        onSimulateNap = onSimulateNap
+                    )
+                }
             }
 
             state.sessionType == SessionType.TRANSIT -> {
-                TransitScreen(
-                    state = state,
-                    onStopSession = { sessionManager.endSession(SessionOutcome.CANCELLED) },
-                    onSimulateRoute = onSimulateRoute
-                )
+                DismissibleScreen(onBack = {}, enabled = false) {
+                    TransitScreen(
+                        state = state,
+                        onStopSession = { sessionManager.endSession(SessionOutcome.CANCELLED) },
+                        onSimulateRoute = onSimulateRoute
+                    )
+                }
             }
 
             destinationPickerFor != null -> {
@@ -173,113 +183,128 @@ fun WakeSyncNavHost(
                     PickerStep.MAP -> stringResource(R.string.title_dest_map)
                 }
 
-                when (val pickerStateValue = pickerState) {
-                    DestinationPickerState.Idle, is DestinationPickerState.Results -> {
-                        DestinationSearchScreen(
-                            state = pickerStateValue,
-                            onSearch = { query -> pickerContract?.search(query) },
-                            onSelectPrediction = { placeId -> pickerContract?.selectPrediction(placeId) },
-                            onOpenMap = {
-                                pickerStep = PickerStep.MAP
-                                pickerContract?.openMap(null)
-                            },
-                            onExit = { exitPicker() }
-                        )
-                    }
-
-                    DestinationPickerState.Loading -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize().background(WakeSyncColors.PureBlack),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressArc(
-                                progress = 0.35f,
-                                color = WakeSyncColors.SageTeal,
-                                trackColor = WakeSyncColors.SageTealMuted,
-                                modifier = Modifier.size(60.dp)
+                DismissibleScreen(onBack = { exitPicker() }) {
+                    when (val pickerStateValue = pickerState) {
+                        DestinationPickerState.Idle, is DestinationPickerState.Results -> {
+                            DestinationSearchScreen(
+                                state = pickerStateValue,
+                                onSearch = { query -> pickerContract?.search(query) },
+                                onSelectPrediction = { placeId -> pickerContract?.selectPrediction(placeId) },
+                                onOpenMap = {
+                                    pickerStep = PickerStep.MAP
+                                    pickerContract?.openMap(null)
+                                },
+                                onExit = { exitPicker() }
                             )
                         }
-                    }
 
-                    is DestinationPickerState.Map -> {
-                        DestinationMapScreen(
-                            image = pickerStateValue.image,
-                            onPan = { dx, dy -> pickerContract?.panMap(dx, dy) },
-                            onZoom = { delta -> pickerContract?.zoomMap(delta) },
-                            onPinCenter = { pickerContract?.pinMapCenter() },
-                            onExit = { exitPicker() }
-                        )
-                    }
+                        DestinationPickerState.Loading -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize().background(WakeSyncColors.PureBlack),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressArc(
+                                    progress = 0.35f,
+                                    color = WakeSyncColors.SageTeal,
+                                    trackColor = WakeSyncColors.SageTealMuted,
+                                    modifier = Modifier.size(60.dp)
+                                )
+                            }
+                        }
 
-                    is DestinationPickerState.Confirm -> {
-                        ConfirmDestinationScreen(
-                            destination = pickerStateValue.destination,
-                            address = pickerStateValue.address,
-                            straightLineMeters = pickerStateValue.straightLineMeters,
-                            onConfirm = {
-                                val forType = destinationPickerFor
-                                val chosenDestination = pickerStateValue.destination
-                                // Reset after confirming too, not just on cancel — otherwise this
-                                // Confirm state reappears next time the picker is opened.
-                                pickerContract?.reset()
-                                destinationPickerFor = null
-                                pickerStep = PickerStep.SEARCH
-                                if (forType != null) {
-                                    sessionManager.requestStartSession(forType, chosenDestination)
-                                }
-                            },
-                            onCancel = { exitPicker() }
-                        )
-                    }
+                        is DestinationPickerState.Map -> {
+                            DestinationMapScreen(
+                                image = pickerStateValue.image,
+                                onPan = { dx, dy -> pickerContract?.panMap(dx, dy) },
+                                onZoom = { delta -> pickerContract?.zoomMap(delta) },
+                                onPinCenter = { pickerContract?.pinMapCenter() },
+                                onExit = { exitPicker() }
+                            )
+                        }
 
-                    DestinationPickerState.Offline -> {
-                        PickerFallbackBanner(
-                            message = stringResource(R.string.dest_offline_msg),
-                            stepTitle = stepTitle,
-                            onRetry = { pickerContract?.retry() },
-                            onExit = { exitPicker() }
-                        )
-                    }
+                        is DestinationPickerState.Confirm -> {
+                            ConfirmDestinationScreen(
+                                destination = pickerStateValue.destination,
+                                address = pickerStateValue.address,
+                                straightLineMeters = pickerStateValue.straightLineMeters,
+                                onConfirm = {
+                                    val forType = destinationPickerFor
+                                    val chosenDestination = pickerStateValue.destination
+                                    // Reset after confirming too, not just on cancel — otherwise this
+                                    // Confirm state reappears next time the picker is opened.
+                                    pickerContract?.reset()
+                                    destinationPickerFor = null
+                                    pickerStep = PickerStep.SEARCH
+                                    if (forType != null) {
+                                        sessionManager.requestStartSession(forType, chosenDestination)
+                                    }
+                                },
+                                onCancel = { exitPicker() }
+                            )
+                        }
 
-                    is DestinationPickerState.Error -> {
-                        PickerFallbackBanner(
-                            message = pickerStateValue.message,
-                            stepTitle = stepTitle,
-                            onRetry = { pickerContract?.retry() },
-                            onExit = { exitPicker() }
-                        )
+                        DestinationPickerState.Offline -> {
+                            PickerFallbackBanner(
+                                message = stringResource(R.string.dest_offline_msg),
+                                stepTitle = stepTitle,
+                                onRetry = { pickerContract?.retry() },
+                                onExit = { exitPicker() }
+                            )
+                        }
+
+                        is DestinationPickerState.Error -> {
+                            PickerFallbackBanner(
+                                message = pickerStateValue.message,
+                                stepTitle = stepTitle,
+                                onRetry = { pickerContract?.retry() },
+                                onExit = { exitPicker() }
+                            )
+                        }
                     }
                 }
             }
 
             isSettingsOpen -> {
-                SettingsScreen(
-                    state = state,
-                    onClearHistory = {
-                        coroutineScope.launch {
-                            historyRepository.clearHistory()
-                        }
-                    },
-                    onRequestPermissions = onRequestPermissions,
-                    onToggleSimulation = { enabled ->
-                        sessionManager.setSimulationMode(enabled)
-                    },
-                    onBack = { isSettingsOpen = false }
-                )
+                DismissibleScreen(onBack = { isSettingsOpen = false }) {
+                    SettingsScreen(
+                        state = state,
+                        onClearHistory = {
+                            coroutineScope.launch {
+                                historyRepository.clearHistory()
+                            }
+                        },
+                        onRequestPermissions = onRequestPermissions,
+                        onToggleSimulation = { enabled ->
+                            sessionManager.setSimulationMode(enabled)
+                        },
+                        onBack = { isSettingsOpen = false }
+                    )
+                }
+            }
+
+            isHistoryOpen -> {
+                DismissibleScreen(onBack = { isHistoryOpen = false }) {
+                    HistoryScreen(
+                        onBack = { isHistoryOpen = false }
+                    )
+                }
             }
 
             recordForSummary != null -> {
-                SessionSummaryScreen(
-                    record = recordForSummary,
-                    insightState = gatedInsightState,
-                    onRetryInsight = { insightContract?.retry() },
-                    onBackToHome = {
-                        dismissedRecordId = recordForSummary.id
-                        // Persist the dismissal in core state: `remember` alone is lost when the
-                        // Activity is recreated, which re-opened this summary with no way out (F10)
-                        sessionManager.acknowledgeSessionEnd()
-                    }
-                )
+                val onBackToHome = {
+                    dismissedRecordId = recordForSummary.id
+                    // Persist the dismissal in core state: `remember` alone is lost when the
+                    // Activity is recreated, which re-opened this summary with no way out (F10)
+                    sessionManager.acknowledgeSessionEnd()
+                }
+                DismissibleScreen(onBack = onBackToHome) {
+                    SessionSummaryScreen(
+                        record = recordForSummary,
+                        insightState = gatedInsightState,
+                        onRetryInsight = { insightContract?.retry() },
+                        onBackToHome = onBackToHome
+                    )
+                }
             }
 
             else -> {
@@ -293,6 +318,7 @@ fun WakeSyncNavHost(
                         pickerStep = PickerStep.SEARCH
                         destinationPickerFor = if (forNap) SessionType.NAP else SessionType.TRANSIT
                     },
+                    onOpenHistory = { isHistoryOpen = true },
                     onOpenSettings = { isSettingsOpen = true }
                 )
             }
