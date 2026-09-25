@@ -3,6 +3,7 @@ package com.wakesync
 import android.content.Context
 import android.util.Log
 import com.wakesync.ai.RestEstimatorEngine
+import com.wakesync.ai.RestEvaluationResult
 import com.wakesync.alerts.HapticVibrationController
 import com.wakesync.core.alerts.AlertControllerProvider
 import com.wakesync.core.model.BiometricMetrics
@@ -64,6 +65,29 @@ class AppSessionCoordinator(
         fun getInstance(context: Context): AppSessionCoordinator {
             return instance ?: synchronized(this) {
                 instance ?: AppSessionCoordinator(context.applicationContext).also { instance = it }
+            }
+        }
+
+        /**
+         * F24: resolves the [RestState] to publish from a raw [RestEvaluationResult]. Gates
+         * `result.isCalibrating` (a raw engine signal, true whenever HR is fresh but there's no
+         * basal HR yet — regardless of session type or phase) on the caller's own session state,
+         * so only a Nap session actually in [NapPhase.CALIBRATING] can show `CALIBRATING`. A
+         * Transit session (no calibration phase, F8) or a Nap already in MONITORING after a
+         * zero-reading calibration (NapManager's defensive-fallback path, F18) fall through to
+         * `SENSOR_UNAVAILABLE` instead of getting stuck showing "Calibrando" forever. Pure and
+         * side-effect-free so it can be unit tested without a Context.
+         */
+        internal fun resolveRestState(
+            result: RestEvaluationResult,
+            sessionType: SessionType,
+            napPhase: NapPhase
+        ): RestState {
+            val isNapCalibrating = sessionType == SessionType.NAP && napPhase == NapPhase.CALIBRATING
+            return when {
+                result.isDataValid -> result.state
+                result.isCalibrating && isNapCalibrating -> RestState.CALIBRATING
+                else -> RestState.SENSOR_UNAVAILABLE
             }
         }
     }
@@ -140,11 +164,15 @@ class AppSessionCoordinator(
             // Relay RestEstimatorEngine evaluation result
             launch {
                 restEstimatorEngine.evaluationResult.collect { result ->
-                    val prev = sessionManager.state.value.biometricMetrics
+                    val currentState = sessionManager.state.value
                     sessionManager.updateBiometrics(
-                        prev.copy(
+                        currentState.biometricMetrics.copy(
                             restScore = result.score,
-                            restState = if (result.isDataValid) result.state else RestState.SENSOR_UNAVAILABLE
+                            restState = resolveRestState(
+                                result = result,
+                                sessionType = currentState.sessionType,
+                                napPhase = currentState.napState.phase
+                            )
                         )
                     )
                 }

@@ -90,7 +90,7 @@ fun SessionSummaryScreen(
             item {
                 Text(
                     text = stringResource(R.string.title_session_summary),
-                    color = if (isAmbient) WakeSyncColors.TextMuted else WakeSyncColors.White,
+                    color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.CreamSoft,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
@@ -106,7 +106,7 @@ fun SessionSummaryScreen(
                 val outcomeLabel = stringResource(sessionOutcomeStringRes(record.outcome))
                 Text(
                     text = "$sessionLabel • $outcomeLabel",
-                    color = WakeSyncColors.TextMuted,
+                    color = WakeSyncColors.TanMuted,
                     fontSize = 10.sp,
                     textAlign = TextAlign.Center
                 )
@@ -115,7 +115,7 @@ fun SessionSummaryScreen(
             item {
                 Text(
                     text = UiFormatters.formatSessionDuration(record.durationSeconds),
-                    color = WakeSyncColors.White,
+                    color = WakeSyncColors.CreamSoft,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -133,8 +133,8 @@ fun SessionSummaryScreen(
                     modifier = Modifier.sizeIn(minWidth = 54.dp, minHeight = 48.dp),
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = WakeSyncColors.CarbonSurface,
-                        contentColor = WakeSyncColors.White
+                        containerColor = WakeSyncColors.BlueDeep,
+                        contentColor = WakeSyncColors.CreamSoft
                     )
                 ) {
                     Text(text = stringResource(R.string.btn_back_to_home), fontSize = 10.sp)
@@ -150,7 +150,7 @@ private fun InsightCard(insightState: InsightState, onRetryInsight: () -> Unit) 
         onClick = {},
         modifier = Modifier.fillMaxWidth(0.92f),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = WakeSyncColors.CarbonSurface)
+        colors = CardDefaults.cardColors(containerColor = WakeSyncColors.BlueDeep)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -160,15 +160,15 @@ private fun InsightCard(insightState: InsightState, onRetryInsight: () -> Unit) 
                 InsightState.Idle, InsightState.Loading -> {
                     CircularProgressArc(
                         progress = 0.35f,
-                        color = WakeSyncColors.White,
-                        trackColor = WakeSyncColors.Carbon,
+                        color = WakeSyncColors.CreamSoft,
+                        trackColor = WakeSyncColors.NavyDeep,
                         modifier = Modifier.size(28.dp),
                         strokeWidth = 3.dp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = stringResource(R.string.insight_loading),
-                        color = WakeSyncColors.TextMuted,
+                        color = WakeSyncColors.TanMuted,
                         fontSize = 9.sp,
                         textAlign = TextAlign.Center
                     )
@@ -177,7 +177,7 @@ private fun InsightCard(insightState: InsightState, onRetryInsight: () -> Unit) 
                 is InsightState.Ready -> {
                     Text(
                         text = insightState.text,
-                        color = WakeSyncColors.White,
+                        color = WakeSyncColors.CreamSoft,
                         fontSize = 11.sp,
                         textAlign = TextAlign.Center
                     )
@@ -186,7 +186,7 @@ private fun InsightCard(insightState: InsightState, onRetryInsight: () -> Unit) 
                 InsightState.Unavailable -> {
                     Text(
                         text = stringResource(R.string.insight_unavailable),
-                        color = WakeSyncColors.OrangeWarning,
+                        color = WakeSyncColors.WarningOchre,
                         fontSize = 10.sp,
                         textAlign = TextAlign.Center
                     )
@@ -195,8 +195,8 @@ private fun InsightCard(insightState: InsightState, onRetryInsight: () -> Unit) 
                         onClick = onRetryInsight,
                         modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 40.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = WakeSyncColors.OrangeMuted,
-                            contentColor = WakeSyncColors.OrangeWarning
+                            containerColor = WakeSyncColors.WarningOchreMuted,
+                            contentColor = WakeSyncColors.WarningOchre
                         )
                     ) {
                         Text(text = stringResource(R.string.btn_retry), fontSize = 9.sp)

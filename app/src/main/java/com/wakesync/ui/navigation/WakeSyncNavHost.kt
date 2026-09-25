@@ -194,8 +194,8 @@ fun WakeSyncNavHost(
                         ) {
                             CircularProgressArc(
                                 progress = 0.35f,
-                                color = WakeSyncColors.GreenTransit,
-                                trackColor = WakeSyncColors.GreenMuted,
+                                color = WakeSyncColors.SageTeal,
+                                trackColor = WakeSyncColors.SageTealMuted,
                                 modifier = Modifier.size(60.dp)
                             )
                         }

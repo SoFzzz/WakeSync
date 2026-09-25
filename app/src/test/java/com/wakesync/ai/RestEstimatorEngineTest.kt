@@ -193,6 +193,50 @@ class RestEstimatorEngineTest {
     }
 
     @Test
+    fun `F24 - fresh HR without HR_base is reported as calibrating, not sensor unavailable`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val timedEngine = RestEstimatorEngine(mockSensorEngine, dispatcher) { testScheduler.currentTime }
+
+        timedEngine.start(backgroundScope)
+        mockSensorEngine.emitDirect(hr = 72, svm = 0.5f)
+        val result = timedEngine.evaluateCurrentCycle()
+
+        assertFalse("Still invalid: no HR_base yet", result.isDataValid)
+        assertTrue("Fresh, in-range HR with no HR_base must be flagged as calibrating", result.isCalibrating)
+
+        timedEngine.stop()
+    }
+
+    @Test
+    fun `F24 - stale or missing HR is sensor unavailable, not calibrating`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val timedEngine = RestEstimatorEngine(mockSensorEngine, dispatcher) { testScheduler.currentTime }
+
+        timedEngine.start(backgroundScope)
+        // No HR ever emitted: hrSamples stays empty, so isFresh is false regardless of HR_base.
+        timedEngine.setBaseHeartRate(75)
+        val result = timedEngine.evaluateCurrentCycle()
+
+        assertFalse("No HR at all must still be invalid", result.isDataValid)
+        assertFalse("No fresh HR at all is a real sensor problem, not calibration", result.isCalibrating)
+
+        timedEngine.stop()
+    }
+
+    @Test
+    fun `F24 - isCalibrating is always false once data is valid`() {
+        val result = engine.calculateScoreAndState(
+            baseHr = 75,
+            currentHr = 65,
+            meanSvm = 1.0f,
+            previousDeepRestCount = 0
+        )
+
+        assertTrue(result.isDataValid)
+        assertFalse(result.isCalibrating)
+    }
+
+    @Test
     fun `inference cycle executes in less than 5 milliseconds`() = runTest {
         val baseHr = 75
         val currentHr = 60

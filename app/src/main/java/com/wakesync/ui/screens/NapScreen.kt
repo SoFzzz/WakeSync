@@ -104,8 +104,8 @@ fun NapScreen(
                     if (!isAmbient) {
                         CircularProgressArc(
                             progress = calibrationProgress,
-                            color = WakeSyncColors.CyanBasal,
-                            trackColor = WakeSyncColors.CyanMuted,
+                            color = WakeSyncColors.SteelBlue,
+                            trackColor = WakeSyncColors.SteelBlueMuted,
                             modifier = Modifier
                                 .size(200.dp)
                                 .rotate(rotationAngle)
@@ -119,7 +119,7 @@ fun NapScreen(
                     ) {
                         Text(
                             text = stringResource(R.string.nap_calibrating_title),
-                            color = if (isAmbient) WakeSyncColors.TextMuted else WakeSyncColors.CyanBasal,
+                            color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.SteelBlue,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
@@ -129,7 +129,7 @@ fun NapScreen(
                         val hr = biometrics.currentHeartRate ?: biometrics.baseHeartRate
                         Text(
                             text = if (hr != null) stringResource(R.string.nap_current_hr_format, hr) else "-- BPM",
-                            color = WakeSyncColors.White,
+                            color = WakeSyncColors.CreamSoft,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -137,7 +137,7 @@ fun NapScreen(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "${20 - napState.elapsedSeconds}s",
-                            color = WakeSyncColors.TextMuted,
+                            color = WakeSyncColors.TanMuted,
                             fontSize = 11.sp
                         )
 
@@ -159,8 +159,8 @@ fun NapScreen(
                     if (!isAmbient) {
                         CircularProgressArc(
                             progress = score,
-                            color = WakeSyncColors.AmberMonitoring,
-                            trackColor = WakeSyncColors.AmberMuted,
+                            color = WakeSyncColors.AmberSand,
+                            trackColor = WakeSyncColors.AmberSandMuted,
                             modifier = Modifier.size(200.dp)
                         )
                     }
@@ -172,7 +172,7 @@ fun NapScreen(
                     ) {
                         Text(
                             text = stringResource(R.string.nap_monitoring_title),
-                            color = if (isAmbient) WakeSyncColors.TextMuted else WakeSyncColors.AmberMonitoring,
+                            color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.AmberSand,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
@@ -189,14 +189,14 @@ fun NapScreen(
                                 RestState.SENSOR_UNAVAILABLE -> stringResource(R.string.rest_state_sensor_unavailable)
                                 RestState.UNKNOWN -> stringResource(R.string.rest_state_unknown)
                             },
-                            color = WakeSyncColors.White,
+                            color = WakeSyncColors.CreamSoft,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold
                         )
 
                         Text(
                             text = stringResource(R.string.nap_rest_score_format, score),
-                            color = WakeSyncColors.AmberMonitoring,
+                            color = WakeSyncColors.AmberSand,
                             fontSize = 12.sp
                         )
 
@@ -204,7 +204,7 @@ fun NapScreen(
                         if (currentHr != null) {
                             Text(
                                 text = stringResource(R.string.nap_current_hr_format, currentHr),
-                                color = WakeSyncColors.TextMuted,
+                                color = WakeSyncColors.TanMuted,
                                 fontSize = 11.sp
                             )
                         }
@@ -214,7 +214,7 @@ fun NapScreen(
                         if (dist != null) {
                             Text(
                                 text = stringResource(R.string.nap_dest_distance_format, dist),
-                                color = WakeSyncColors.CyanBasal,
+                                color = WakeSyncColors.SteelBlue,
                                 fontSize = 10.sp
                             )
                         }
@@ -240,8 +240,8 @@ fun NapScreen(
                     if (!isAmbient) {
                         CircularProgressArc(
                             progress = progress,
-                            color = WakeSyncColors.IndigoDeepRest,
-                            trackColor = WakeSyncColors.IndigoMuted,
+                            color = WakeSyncColors.PlumLavender,
+                            trackColor = WakeSyncColors.PlumLavenderMuted,
                             modifier = Modifier.size(200.dp)
                         )
                     }
@@ -253,7 +253,7 @@ fun NapScreen(
                     ) {
                         Text(
                             text = stringResource(R.string.nap_deep_rest_title),
-                            color = if (isAmbient) WakeSyncColors.TextMuted else WakeSyncColors.IndigoDeepRest,
+                            color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.PlumLavender,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
@@ -265,7 +265,7 @@ fun NapScreen(
                         val seconds = remainingSec % 60
                         Text(
                             text = stringResource(R.string.nap_remaining_time_format, minutes, seconds),
-                            color = WakeSyncColors.White,
+                            color = WakeSyncColors.CreamSoft,
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -274,7 +274,7 @@ fun NapScreen(
                         if (currentHr != null) {
                             Text(
                                 text = stringResource(R.string.nap_current_hr_format, currentHr),
-                                color = WakeSyncColors.TextMuted,
+                                color = WakeSyncColors.TanMuted,
                                 fontSize = 11.sp
                             )
                         }
@@ -287,8 +287,8 @@ fun NapScreen(
                             modifier = Modifier.sizeIn(minWidth = 54.dp, minHeight = 48.dp),
                             shape = CircleShape,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = WakeSyncColors.CarbonSurface,
-                                contentColor = WakeSyncColors.White
+                                containerColor = WakeSyncColors.BlueDeep,
+                                contentColor = WakeSyncColors.CreamSoft
                             )
                         ) {
                             Text(text = stringResource(R.string.btn_stop), fontSize = 10.sp)
@@ -305,7 +305,7 @@ fun NapScreen(
                 ) {
                     Text(
                         text = stringResource(R.string.title_nap),
-                        color = WakeSyncColors.White,
+                        color = WakeSyncColors.CreamSoft,
                         fontSize = 14.sp
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -341,8 +341,8 @@ private fun NapControlsRow(
             modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
             shape = CircleShape,
             colors = ButtonDefaults.buttonColors(
-                containerColor = WakeSyncColors.CarbonSurface,
-                contentColor = WakeSyncColors.White
+                containerColor = WakeSyncColors.BlueDeep,
+                contentColor = WakeSyncColors.CreamSoft
             )
         ) {
             Text(text = stringResource(R.string.btn_stop), fontSize = 10.sp)
@@ -355,8 +355,8 @@ private fun NapControlsRow(
                 modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = WakeSyncColors.CyanMuted,
-                    contentColor = WakeSyncColors.CyanBasal
+                    containerColor = WakeSyncColors.SteelBlueMuted,
+                    contentColor = WakeSyncColors.SteelBlue
                 )
             ) {
                 Text(

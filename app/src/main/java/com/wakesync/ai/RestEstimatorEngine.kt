@@ -187,11 +187,17 @@ class RestEstimatorEngine(
 
         // Validate data availability and physiological limits
         if (!isFresh || currentHr == null || currentBaseHr == null) {
+            // F24: fresh, in-range HR but no basal HR yet is a different situation than a
+            // genuinely unavailable sensor — but this engine has no notion of session phase, so
+            // it only exposes the raw signal. The caller (AppSessionCoordinator) is responsible
+            // for gating this on the actual Nap CALIBRATING phase before treating it as such.
+            val calibrating = isFresh && currentHr != null && currentBaseHr == null
             val invalidResult = RestEvaluationResult(
                 score = _evaluationResult.value.score,
                 state = lastValidState,
                 consecutiveDeepRestCount = 0,
                 isDataValid = false,
+                isCalibrating = calibrating,
                 timestamp = now
             )
             consecutiveDeepRestCount = 0

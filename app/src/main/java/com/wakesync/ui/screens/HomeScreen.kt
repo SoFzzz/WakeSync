@@ -79,7 +79,7 @@ fun HomeScreen(
             item {
                 Text(
                     text = stringResource(R.string.app_name),
-                    color = if (isAmbient) WakeSyncColors.TextMuted else WakeSyncColors.White,
+                    color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.CreamSoft,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 6.dp)
@@ -93,14 +93,14 @@ fun HomeScreen(
                         modifier = Modifier
                             .fillMaxWidth(0.9f)
                             .padding(vertical = 4.dp)
-                            .background(WakeSyncColors.OrangeMuted, RoundedCornerShape(12.dp))
+                            .background(WakeSyncColors.WarningOchreMuted, RoundedCornerShape(12.dp))
                             .clickable { onOpenSettings() }
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = stringResource(R.string.settings_permissions_missing),
-                            color = WakeSyncColors.OrangeWarning,
+                            color = WakeSyncColors.WarningOchre,
                             fontSize = 9.sp,
                             textAlign = TextAlign.Center
                         )
@@ -117,8 +117,8 @@ fun HomeScreen(
                         .padding(vertical = 4.dp),
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.CarbonSurface,
-                        contentColor = WakeSyncColors.White
+                        containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueDeep,
+                        contentColor = WakeSyncColors.CreamSoft
                     ),
                     border = if (isAmbient) {
                         CardDefaults.outlinedCardBorder()
@@ -133,13 +133,13 @@ fun HomeScreen(
                             text = stringResource(R.string.btn_start_nap),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = WakeSyncColors.White
+                            color = WakeSyncColors.CreamSoft
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = stringResource(R.string.nap_calibrating_desc),
                             fontSize = 10.sp,
-                            color = WakeSyncColors.TextMuted,
+                            color = WakeSyncColors.TanMuted,
                             maxLines = 1
                         )
                         Spacer(modifier = Modifier.height(6.dp))
@@ -152,7 +152,7 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .sizeIn(minWidth = 48.dp, minHeight = 28.dp)
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(WakeSyncColors.Carbon)
+                                    .background(WakeSyncColors.NavyDeep)
                                     .clickable { onOpenDestinationSearch(true) }
                                     .padding(horizontal = 8.dp, vertical = 4.dp),
                                 contentAlignment = Alignment.Center
@@ -160,7 +160,7 @@ fun HomeScreen(
                                 Text(
                                     text = stringResource(R.string.btn_add_destination),
                                     fontSize = 9.sp,
-                                    color = WakeSyncColors.CyanBasal,
+                                    color = WakeSyncColors.SteelBlue,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
@@ -178,8 +178,8 @@ fun HomeScreen(
                         .padding(vertical = 4.dp),
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.CarbonSurface,
-                        contentColor = WakeSyncColors.White
+                        containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueDeep,
+                        contentColor = WakeSyncColors.CreamSoft
                     ),
                     border = if (isAmbient) {
                         CardDefaults.outlinedCardBorder()
@@ -194,13 +194,13 @@ fun HomeScreen(
                             text = stringResource(R.string.btn_start_transit),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = WakeSyncColors.White
+                            color = WakeSyncColors.CreamSoft
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = stringResource(R.string.transit_select_destination_prompt),
                             fontSize = 10.sp,
-                            color = WakeSyncColors.GreenTransit,
+                            color = WakeSyncColors.SageTeal,
                             maxLines = 1
                         )
                     }
@@ -215,8 +215,8 @@ fun HomeScreen(
                     modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = WakeSyncColors.CarbonSurface,
-                        contentColor = WakeSyncColors.White
+                        containerColor = WakeSyncColors.BlueDeep,
+                        contentColor = WakeSyncColors.CreamSoft
                     )
                 ) {
                     Text(

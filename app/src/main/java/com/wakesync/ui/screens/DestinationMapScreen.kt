@@ -121,7 +121,7 @@ fun DestinationMapScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(WakeSyncColors.CarbonSurface)
+                        .background(WakeSyncColors.BlueDeep)
                 )
             }
         }
@@ -130,7 +130,7 @@ fun DestinationMapScreen(
         Box(
             modifier = Modifier
                 .size(14.dp)
-                .background(WakeSyncColors.GreenTransit, CircleShape)
+                .background(WakeSyncColors.SageTeal, CircleShape)
         )
 
         // Required Mapbox logo (official black wordmark + icon, on a light backing), always visible.
@@ -141,7 +141,7 @@ fun DestinationMapScreen(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = MAPBOX_LOGO_TOP_PADDING_DP)
-                .background(WakeSyncColors.White.copy(alpha = 0.8f), CircleShape)
+                .background(WakeSyncColors.CreamSoft.copy(alpha = 0.8f), CircleShape)
                 .padding(horizontal = 6.dp, vertical = 2.dp)
                 .height(MAPBOX_LOGO_HEIGHT_DP)
         )
@@ -150,7 +150,7 @@ fun DestinationMapScreen(
         Text(
             text = stringResource(R.string.map_attribution),
             fontSize = 8.sp,
-            color = WakeSyncColors.White,
+            color = WakeSyncColors.CreamSoft,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = ATTRIBUTION_BOTTOM_PADDING_DP)
@@ -167,8 +167,8 @@ fun DestinationMapScreen(
                     .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = WakeSyncColors.CarbonSurface.copy(alpha = 0.75f),
-                    contentColor = WakeSyncColors.White
+                    containerColor = WakeSyncColors.BlueDeep.copy(alpha = 0.75f),
+                    contentColor = WakeSyncColors.CreamSoft
                 )
             ) {
                 Text(text = "←", fontSize = 14.sp)
@@ -181,8 +181,8 @@ fun DestinationMapScreen(
                     .padding(bottom = BOTTOM_SAFE_ZONE_DP)
                     .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = WakeSyncColors.GreenMuted,
-                    contentColor = WakeSyncColors.GreenTransit
+                    containerColor = WakeSyncColors.SageTealMuted,
+                    contentColor = WakeSyncColors.SageTeal
                 )
             ) {
                 Text(text = stringResource(R.string.btn_pin_destination), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)

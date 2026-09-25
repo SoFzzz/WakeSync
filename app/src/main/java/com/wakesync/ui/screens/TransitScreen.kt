@@ -76,8 +76,8 @@ fun TransitScreen(
         if (!isAmbient) {
             CircularProgressArc(
                 progress = progress,
-                color = WakeSyncColors.GreenTransit,
-                trackColor = WakeSyncColors.GreenMuted,
+                color = WakeSyncColors.SageTeal,
+                trackColor = WakeSyncColors.SageTealMuted,
                 modifier = Modifier.size(200.dp)
             )
         }
@@ -90,7 +90,7 @@ fun TransitScreen(
             // Destination Label
             Text(
                 text = destName,
-                color = if (isAmbient) WakeSyncColors.TextMuted else WakeSyncColors.GreenTransit,
+                color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.SageTeal,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
@@ -107,7 +107,7 @@ fun TransitScreen(
             }
             Text(
                 text = distanceText,
-                color = WakeSyncColors.White,
+                color = WakeSyncColors.CreamSoft,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
@@ -123,7 +123,7 @@ fun TransitScreen(
             }
             Text(
                 text = "$speedText • R: ${radius.toInt()}m",
-                color = WakeSyncColors.TextMuted,
+                color = WakeSyncColors.TanMuted,
                 fontSize = 11.sp,
                 textAlign = TextAlign.Center
             )
@@ -131,7 +131,7 @@ fun TransitScreen(
             // Rest State Modulation Indicator
             Text(
                 text = if (isDeepRest) stringResource(R.string.transit_state_deep_rest) else stringResource(R.string.transit_state_awake),
-                color = if (isDeepRest) WakeSyncColors.IndigoDeepRest else WakeSyncColors.GreenTransit,
+                color = if (isDeepRest) WakeSyncColors.PlumLavender else WakeSyncColors.SageTeal,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center
@@ -151,8 +151,8 @@ fun TransitScreen(
                         modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = WakeSyncColors.CarbonSurface,
-                            contentColor = WakeSyncColors.White
+                            containerColor = WakeSyncColors.BlueDeep,
+                            contentColor = WakeSyncColors.CreamSoft
                         )
                     ) {
                         Text(text = stringResource(R.string.btn_stop), fontSize = 10.sp)
@@ -165,8 +165,8 @@ fun TransitScreen(
                             modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                             shape = CircleShape,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = WakeSyncColors.GreenMuted,
-                                contentColor = WakeSyncColors.GreenTransit
+                                containerColor = WakeSyncColors.SageTealMuted,
+                                contentColor = WakeSyncColors.SageTeal
                             )
                         ) {
                             Text(

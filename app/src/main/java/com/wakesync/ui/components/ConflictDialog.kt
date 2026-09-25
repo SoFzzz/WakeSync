@@ -53,7 +53,7 @@ fun ConflictDialog(
         ) {
             Text(
                 text = stringResource(R.string.conflict_dialog_title),
-                color = WakeSyncColors.White,
+                color = WakeSyncColors.CreamSoft,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
@@ -75,7 +75,7 @@ fun ConflictDialog(
 
             Text(
                 text = stringResource(R.string.conflict_dialog_msg, currentName, requestedName),
-                color = WakeSyncColors.TextMuted,
+                color = WakeSyncColors.TanMuted,
                 fontSize = 11.sp,
                 textAlign = TextAlign.Center
             )
@@ -93,8 +93,8 @@ fun ConflictDialog(
                     modifier = Modifier.sizeIn(minWidth = 54.dp, minHeight = 48.dp),
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = WakeSyncColors.CarbonSurface,
-                        contentColor = WakeSyncColors.White
+                        containerColor = WakeSyncColors.BlueDeep,
+                        contentColor = WakeSyncColors.CreamSoft
                     )
                 ) {
                     Text(
@@ -110,8 +110,8 @@ fun ConflictDialog(
                     modifier = Modifier.sizeIn(minWidth = 54.dp, minHeight = 48.dp),
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = WakeSyncColors.IndigoDeepRest,
-                        contentColor = WakeSyncColors.White
+                        containerColor = WakeSyncColors.PlumLavender,
+                        contentColor = WakeSyncColors.CreamSoft
                     )
                 ) {
                     Text(

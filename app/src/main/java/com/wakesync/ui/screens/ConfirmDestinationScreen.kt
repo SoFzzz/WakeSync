@@ -62,7 +62,7 @@ fun ConfirmDestinationScreen(
         ) {
             Text(
                 text = stringResource(R.string.title_dest_confirm),
-                color = if (isAmbient) WakeSyncColors.TextMuted else WakeSyncColors.GreenTransit,
+                color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.SageTeal,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
@@ -70,7 +70,7 @@ fun ConfirmDestinationScreen(
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = destination.name ?: stringResource(R.string.dest_confirm_unnamed),
-                color = WakeSyncColors.White,
+                color = WakeSyncColors.CreamSoft,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
@@ -80,7 +80,7 @@ fun ConfirmDestinationScreen(
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = address,
-                    color = WakeSyncColors.TextMuted,
+                    color = WakeSyncColors.TanMuted,
                     fontSize = 10.sp,
                     textAlign = TextAlign.Center,
                     maxLines = 2
@@ -90,7 +90,7 @@ fun ConfirmDestinationScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = stringResource(R.string.dest_confirm_distance_format, distanceText),
-                    color = WakeSyncColors.GreenTransit,
+                    color = WakeSyncColors.SageTeal,
                     fontSize = 11.sp,
                     textAlign = TextAlign.Center
                 )
@@ -107,8 +107,8 @@ fun ConfirmDestinationScreen(
                         modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = WakeSyncColors.CarbonSurface,
-                            contentColor = WakeSyncColors.White
+                            containerColor = WakeSyncColors.BlueDeep,
+                            contentColor = WakeSyncColors.CreamSoft
                         )
                     ) {
                         Text(text = stringResource(R.string.btn_cancel), fontSize = 10.sp)
@@ -119,8 +119,8 @@ fun ConfirmDestinationScreen(
                         modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = WakeSyncColors.GreenMuted,
-                            contentColor = WakeSyncColors.GreenTransit
+                            containerColor = WakeSyncColors.SageTealMuted,
+                            contentColor = WakeSyncColors.SageTeal
                         )
                     ) {
                         Text(text = stringResource(R.string.btn_confirm), fontSize = 10.sp, fontWeight = FontWeight.Bold)

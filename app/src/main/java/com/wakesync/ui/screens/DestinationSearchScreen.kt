@@ -121,7 +121,7 @@ fun DestinationSearchScreen(
             item {
                 Text(
                     text = stringResource(R.string.title_dest_search),
-                    color = if (isAmbient) WakeSyncColors.TextMuted else WakeSyncColors.GreenTransit,
+                    color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.SageTeal,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
@@ -138,8 +138,8 @@ fun DestinationSearchScreen(
                             .sizeIn(minHeight = 48.dp)
                             .padding(vertical = 3.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = WakeSyncColors.GreenMuted,
-                            contentColor = WakeSyncColors.GreenTransit
+                            containerColor = WakeSyncColors.SageTealMuted,
+                            contentColor = WakeSyncColors.SageTeal
                         )
                     ) {
                         Text(text = stringResource(R.string.btn_search), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
@@ -154,8 +154,8 @@ fun DestinationSearchScreen(
                             .sizeIn(minHeight = 48.dp)
                             .padding(vertical = 3.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = WakeSyncColors.Carbon,
-                            contentColor = WakeSyncColors.White
+                            containerColor = WakeSyncColors.NavyDeep,
+                            contentColor = WakeSyncColors.CreamSoft
                         )
                     ) {
                         Text(text = stringResource(R.string.btn_choose_on_map), fontSize = 11.sp)
@@ -166,7 +166,7 @@ fun DestinationSearchScreen(
                     item {
                         Text(
                             text = stringResource(R.string.dest_search_min_chars_hint),
-                            color = WakeSyncColors.OrangeWarning,
+                            color = WakeSyncColors.WarningOchre,
                             fontSize = 9.sp,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(vertical = 4.dp)
@@ -180,7 +180,7 @@ fun DestinationSearchScreen(
                     item {
                         Text(
                             text = stringResource(R.string.dest_search_no_results),
-                            color = WakeSyncColors.TextMuted,
+                            color = WakeSyncColors.TanMuted,
                             fontSize = 10.sp,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(vertical = 4.dp)
@@ -201,8 +201,8 @@ fun DestinationSearchScreen(
                     modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = WakeSyncColors.CarbonSurface,
-                        contentColor = WakeSyncColors.White
+                        containerColor = WakeSyncColors.BlueDeep,
+                        contentColor = WakeSyncColors.CreamSoft
                     )
                 ) {
                     Text(text = "←", fontSize = 14.sp)
@@ -222,8 +222,8 @@ private fun DestinationResultItem(prediction: PlacePrediction, onClick: () -> Un
             .sizeIn(minHeight = 48.dp)
             .padding(vertical = 3.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = WakeSyncColors.CarbonSurface,
-            contentColor = WakeSyncColors.White
+            containerColor = WakeSyncColors.BlueDeep,
+            contentColor = WakeSyncColors.CreamSoft
         )
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -238,7 +238,7 @@ private fun DestinationResultItem(prediction: PlacePrediction, onClick: () -> Un
                 Text(
                     text = prediction.secondaryText,
                     fontSize = 9.sp,
-                    color = WakeSyncColors.TextMuted,
+                    color = WakeSyncColors.TanMuted,
                     maxLines = 1,
                     textAlign = TextAlign.Center
                 )

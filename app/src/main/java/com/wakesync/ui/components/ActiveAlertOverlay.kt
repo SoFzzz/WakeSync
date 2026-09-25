@@ -79,8 +79,8 @@ fun ActiveAlertOverlay(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
-                        if (isUrgent) WakeSyncColors.CoralMuted.copy(alpha = 0.65f)
-                        else WakeSyncColors.CarbonSurface.copy(alpha = 0.5f)
+                        if (isUrgent) WakeSyncColors.EmberRoseMuted.copy(alpha = 0.65f)
+                        else WakeSyncColors.BlueDeep.copy(alpha = 0.5f)
                     )
             )
 
@@ -99,7 +99,7 @@ fun ActiveAlertOverlay(
                         AlertLevel.SOFT -> stringResource(R.string.alert_soft_title)
                         AlertLevel.NONE -> ""
                     },
-                    color = WakeSyncColors.CoralAlert,
+                    color = WakeSyncColors.EmberRose,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
@@ -115,7 +115,7 @@ fun ActiveAlertOverlay(
                         AlertLevel.SOFT -> stringResource(R.string.alert_soft_desc)
                         AlertLevel.NONE -> ""
                     },
-                    color = if (isUrgent) WakeSyncColors.White else WakeSyncColors.TextMuted,
+                    color = if (isUrgent) WakeSyncColors.CreamSoft else WakeSyncColors.TanMuted,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center
                 )
@@ -130,8 +130,8 @@ fun ActiveAlertOverlay(
                         .scale(pulseScale),
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isUrgent) WakeSyncColors.CoralAlert else WakeSyncColors.CarbonSurface,
-                        contentColor = WakeSyncColors.White
+                        containerColor = if (isUrgent) WakeSyncColors.EmberRose else WakeSyncColors.BlueDeep,
+                        contentColor = WakeSyncColors.CreamSoft
                     )
                 ) {
                     Text(
@@ -146,7 +146,7 @@ fun ActiveAlertOverlay(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = stringResource(R.string.alert_touch_to_dismiss),
-                        color = WakeSyncColors.TextMuted,
+                        color = WakeSyncColors.TanMuted,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center

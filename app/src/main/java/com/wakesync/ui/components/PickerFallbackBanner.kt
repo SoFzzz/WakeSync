@@ -57,7 +57,7 @@ fun PickerFallbackBanner(
         ) {
             Text(
                 text = stepTitle,
-                color = if (isAmbient) WakeSyncColors.TextMuted else WakeSyncColors.OrangeWarning,
+                color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.WarningOchre,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
@@ -65,7 +65,7 @@ fun PickerFallbackBanner(
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = message,
-                color = WakeSyncColors.White,
+                color = WakeSyncColors.CreamSoft,
                 fontSize = 11.sp,
                 textAlign = TextAlign.Center,
                 maxLines = 3
@@ -78,8 +78,8 @@ fun PickerFallbackBanner(
                     modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = WakeSyncColors.OrangeMuted,
-                        contentColor = WakeSyncColors.OrangeWarning
+                        containerColor = WakeSyncColors.WarningOchreMuted,
+                        contentColor = WakeSyncColors.WarningOchre
                     )
                 ) {
                     Text(text = stringResource(R.string.btn_retry), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
@@ -90,8 +90,8 @@ fun PickerFallbackBanner(
                     modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = WakeSyncColors.CarbonSurface,
-                        contentColor = WakeSyncColors.White
+                        containerColor = WakeSyncColors.BlueDeep,
+                        contentColor = WakeSyncColors.CreamSoft
                     )
                 ) {
                     Text(text = stringResource(R.string.btn_cancel), fontSize = 10.sp)

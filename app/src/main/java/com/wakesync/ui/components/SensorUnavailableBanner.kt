@@ -37,12 +37,12 @@ fun SensorUnavailableBanner(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .background(
-                color = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.OrangeMuted.copy(alpha = 0.85f),
+                color = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.WarningOchreMuted.copy(alpha = 0.85f),
                 shape = RoundedCornerShape(16.dp)
             )
             .border(
                 width = 1.dp,
-                color = if (isAmbient) WakeSyncColors.CarbonSurface else WakeSyncColors.OrangeWarning,
+                color = if (isAmbient) WakeSyncColors.BlueDeep else WakeSyncColors.WarningOchre,
                 shape = RoundedCornerShape(16.dp)
             )
             .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -51,7 +51,7 @@ fun SensorUnavailableBanner(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = stringResource(R.string.sensor_unavailable_title),
-                color = if (isAmbient) WakeSyncColors.TextMuted else WakeSyncColors.OrangeWarning,
+                color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.WarningOchre,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
@@ -60,7 +60,7 @@ fun SensorUnavailableBanner(
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = stringResource(R.string.sensor_unavailable_msg),
-                    color = WakeSyncColors.White,
+                    color = WakeSyncColors.CreamSoft,
                     fontSize = 9.sp,
                     textAlign = TextAlign.Center,
                     maxLines = 2
