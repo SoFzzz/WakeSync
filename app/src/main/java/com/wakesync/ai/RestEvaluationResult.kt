@@ -20,6 +20,9 @@ import com.wakesync.core.model.RestState
  * @property deltaHrRelative Relative heart rate reduction component in range [0.0, 1.0].
  * @property quietude Motion quietude component in range [0.0, 1.0].
  * @property timestamp System timestamp when the evaluation was computed.
+ * @property isInitial True only for the placeholder published before the engine's first
+ *   evaluation cycle of a session (fresh engine or after `stop()`). Lets callers tell "not
+ *   evaluated yet" apart from "evaluated and the sensor is unavailable".
  */
 data class RestEvaluationResult(
     val score: Float,
@@ -29,5 +32,6 @@ data class RestEvaluationResult(
     val isCalibrating: Boolean = false,
     val deltaHrRelative: Float = 0.0f,
     val quietude: Float = 0.0f,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val isInitial: Boolean = false
 )

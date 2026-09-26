@@ -82,6 +82,10 @@ dependencies {
     // Entrada de texto por voz/teclado en Wear OS (RemoteInput)
     implementation("androidx.wear:wear-input:1.1.0")
 
+    // Ambient / Always-On mode (AmbientLifecycleObserver) — F25. Already resolved transitively via
+    // horologist-compose-layout 0.6.9; declared explicitly at the same version.
+    implementation("androidx.wear:wear:1.3.0")
+
     // Pruebas unitarias
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")

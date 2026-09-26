@@ -237,6 +237,21 @@ class RestEstimatorEngineTest {
     }
 
     @Test
+    fun `only the placeholder before the first evaluation is flagged isInitial`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val timedEngine = RestEstimatorEngine(mockSensorEngine, dispatcher) { testScheduler.currentTime }
+
+        assertTrue("A fresh engine publishes the initial placeholder", timedEngine.evaluationResult.value.isInitial)
+
+        timedEngine.start(backgroundScope)
+        mockSensorEngine.emitDirect(hr = 72, svm = 0.5f)
+        assertFalse("A real evaluation is never initial", timedEngine.evaluateCurrentCycle().isInitial)
+
+        timedEngine.stop()
+        assertTrue("stop() republishes the initial placeholder", timedEngine.evaluationResult.value.isInitial)
+    }
+
+    @Test
     fun `inference cycle executes in less than 5 milliseconds`() = runTest {
         val baseHr = 75
         val currentHr = 60

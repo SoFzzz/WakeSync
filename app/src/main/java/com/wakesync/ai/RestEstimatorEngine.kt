@@ -158,7 +158,8 @@ class RestEstimatorEngine(
         score = 0.0f,
         state = RestState.AWAKE,
         consecutiveDeepRestCount = 0,
-        isDataValid = false
+        isDataValid = false,
+        isInitial = true
     )
 
     /**

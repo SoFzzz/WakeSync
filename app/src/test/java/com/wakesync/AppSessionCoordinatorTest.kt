@@ -110,6 +110,70 @@ class AppSessionCoordinatorTest {
         assertEquals(RestState.DEEP_REST, restState)
     }
 
+    // Start-of-nap notice: before the engine's first evaluation the published result is the
+    // initial placeholder (isInitial=true), which must not flash "sensor unavailable".
+
+    private fun notEvaluatedYetResult() = RestEvaluationResult(
+        score = 0.0f,
+        state = RestState.AWAKE,
+        consecutiveDeepRestCount = 0,
+        isDataValid = false,
+        isInitial = true
+    )
+
+    @Test
+    fun `no evaluation yet during Nap CALIBRATING shows CALIBRATING`() {
+        val restState = AppSessionCoordinator.resolveRestState(
+            result = notEvaluatedYetResult(),
+            sessionType = SessionType.NAP,
+            napPhase = NapPhase.CALIBRATING
+        )
+
+        assertEquals(RestState.CALIBRATING, restState)
+    }
+
+    @Test
+    fun `no evaluation yet with Nap in MONITORING is SENSOR_UNAVAILABLE`() {
+        val restState = AppSessionCoordinator.resolveRestState(
+            result = notEvaluatedYetResult(),
+            sessionType = SessionType.NAP,
+            napPhase = NapPhase.MONITORING
+        )
+
+        assertEquals(RestState.SENSOR_UNAVAILABLE, restState)
+    }
+
+    @Test
+    fun `no evaluation yet during Transit is SENSOR_UNAVAILABLE`() {
+        val restState = AppSessionCoordinator.resolveRestState(
+            result = notEvaluatedYetResult(),
+            sessionType = SessionType.TRANSIT,
+            napPhase = NapPhase.IDLE
+        )
+
+        assertEquals(RestState.SENSOR_UNAVAILABLE, restState)
+    }
+
+    @Test
+    fun `once evaluated, a down sensor during Nap CALIBRATING still shows SENSOR_UNAVAILABLE`() {
+        val evaluatedSensorDown = RestEvaluationResult(
+            score = 0.0f,
+            state = RestState.AWAKE,
+            consecutiveDeepRestCount = 0,
+            isDataValid = false,
+            isCalibrating = false,
+            isInitial = false
+        )
+
+        val restState = AppSessionCoordinator.resolveRestState(
+            result = evaluatedSensorDown,
+            sessionType = SessionType.NAP,
+            napPhase = NapPhase.CALIBRATING
+        )
+
+        assertEquals(RestState.SENSOR_UNAVAILABLE, restState)
+    }
+
     // F26: ⚡ ("start descent") gate — released only by ⚡ AND the end of calibration, any order.
 
     @Test

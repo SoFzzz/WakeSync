@@ -28,6 +28,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -81,6 +82,10 @@ class AppSessionCoordinator(
          * zero-reading calibration (NapManager's defensive-fallback path, F18) fall through to
          * `SENSOR_UNAVAILABLE` instead of getting stuck showing "Calibrando" forever. Pure and
          * side-effect-free so it can be unit tested without a Context.
+         *
+         * Before the engine's first evaluation of a session ([RestEvaluationResult.isInitial]) a
+         * Nap in CALIBRATING also shows `CALIBRATING` instead of flashing "sensor unavailable";
+         * once the engine has evaluated, a genuinely unavailable sensor still shows the notice.
          */
         internal fun resolveRestState(
             result: RestEvaluationResult,
@@ -90,7 +95,7 @@ class AppSessionCoordinator(
             val isNapCalibrating = sessionType == SessionType.NAP && napPhase == NapPhase.CALIBRATING
             return when {
                 result.isDataValid -> result.state
-                result.isCalibrating && isNapCalibrating -> RestState.CALIBRATING
+                (result.isCalibrating || result.isInitial) && isNapCalibrating -> RestState.CALIBRATING
                 else -> RestState.SENSOR_UNAVAILABLE
             }
         }
@@ -180,9 +185,14 @@ class AppSessionCoordinator(
                 }
             }
 
-            // Relay RestEstimatorEngine evaluation result
+            // Relay RestEstimatorEngine evaluation result. Also re-resolved when the session type
+            // changes, so a new nap does not keep the SENSOR_UNAVAILABLE resolved while idle until
+            // the engine's first evaluation (~10 s later).
             launch {
-                restEstimatorEngine.evaluationResult.collect { result ->
+                combine(
+                    restEstimatorEngine.evaluationResult,
+                    sessionManager.state.map { it.sessionType }.distinctUntilChanged()
+                ) { result, _ -> result }.collect { result ->
                     val currentState = sessionManager.state.value
                     sessionManager.updateBiometrics(
                         currentState.biometricMetrics.copy(
