@@ -31,6 +31,16 @@ object WakeSyncSpacing {
      * + alto del botón ~48dp + margen de aire). Sin esto, contenido centrado que crece (p. ej.
      * el aviso de sensor 4.7 o el badge de simulación 4.6 sumados al resto) puede invadir
      * visualmente el área del botón — caso real corregido en `NapScreen.kt` (Etapa 4).
+     *
+     * Se aplica solo a la columna de texto, nunca al arco de progreso (`progressArcDiameter`):
+     * envolver también el arco en este padding lo descentra respecto al borde redondo.
      */
     val bottomButtonReserve: Dp = 64.dp
+
+    /** Diámetro del arco de progreso central (componente 4.5) en las 3 fases de Siesta —
+     * antes un `200.dp` suelto repetido en cada fase. */
+    val progressArcDiameter: Dp = 200.dp
+
+    /** `padding(bottom = ...)` del botón primario de borde inferior (componente 4.2). */
+    val primaryButtonBottomPadding: Dp = 30.dp
 }

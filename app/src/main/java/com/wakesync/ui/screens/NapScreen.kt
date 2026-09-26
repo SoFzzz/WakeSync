@@ -1,11 +1,5 @@
 package com.wakesync.ui.screens
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,14 +11,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.wear.compose.material3.Text
 import com.wakesync.R
 import com.wakesync.core.model.NapPhase
@@ -48,6 +40,12 @@ import com.wakesync.ui.theme.WakeSyncTextStyles
  * distance are always secondary (`Label`). The sensor-unavailable notice (component 4.7) sits
  * in the normal `Column` flow — the pre-F24-fix version overlaid it in a `Box` with
  * `Alignment.TopCenter` on top of the arc, which was the actual bug, not just the visuals.
+ *
+ * The progress arc is a direct child of the outer full-size `Box`, centered on the round
+ * bezel independently of the text below it — `bottomButtonReserve` applies only to the text
+ * `Column` (matches `TransitScreen`'s pattern). Wrapping the arc in that same reserve used to
+ * shift its center ~32dp up, making it non-concentric with the screen (regression fixed here).
+ * The calibration ring no longer rotates: the progress sweep alone already shows advancement.
  */
 @Composable
 fun NapScreen(
@@ -62,18 +60,6 @@ fun NapScreen(
 
     val isSensorUnavailable = biometrics.restState == RestState.SENSOR_UNAVAILABLE
 
-    // Rotation animation for calibration ring
-    val infiniteTransition = rememberInfiniteTransition(label = "NapCalibrationTransition")
-    val rotationAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "CalibrationRotation"
-    )
-
     val showSimulate = state.isSimulated &&
         (napState.phase == NapPhase.CALIBRATING || napState.phase == NapPhase.MONITORING)
 
@@ -83,15 +69,6 @@ fun NapScreen(
             .background(if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.NavyDeep),
         contentAlignment = Alignment.Center
     ) {
-        // Reserve space for the bottom-anchored button(s) below: without this, the arc+text
-        // group (centered in the full box) can grow tall enough — worst case: simulation
-        // badge + sensor notice both visible — to visually collide with Detener/Simular.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = WakeSyncSpacing.bottomButtonReserve),
-            contentAlignment = Alignment.Center
-        ) {
         when (napState.phase) {
             NapPhase.CALIBRATING -> {
                 // Estado 1: Calibrando Basal — dato principal = cuenta regresiva
@@ -102,16 +79,16 @@ fun NapScreen(
                         progress = calibrationProgress,
                         color = WakeSyncColors.SteelBlue,
                         trackColor = WakeSyncColors.SteelBlueMuted,
-                        modifier = Modifier
-                            .size(200.dp)
-                            .rotate(rotationAngle)
+                        modifier = Modifier.size(WakeSyncSpacing.progressArcDiameter)
                     )
                 }
 
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(horizontal = 24.dp)
+                    modifier = Modifier
+                        .padding(bottom = WakeSyncSpacing.bottomButtonReserve)
+                        .padding(horizontal = WakeSyncSpacing.xxl)
                 ) {
                     if (state.isSimulated && !isAmbient) {
                         SimulationBadge(modifier = Modifier.padding(bottom = WakeSyncSpacing.xs))
@@ -160,27 +137,34 @@ fun NapScreen(
                         progress = score,
                         color = WakeSyncColors.AmberSand,
                         trackColor = WakeSyncColors.AmberSandMuted,
-                        modifier = Modifier.size(200.dp)
+                        modifier = Modifier.size(WakeSyncSpacing.progressArcDiameter)
                     )
                 }
 
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(horizontal = 24.dp)
+                    modifier = Modifier
+                        .padding(bottom = WakeSyncSpacing.bottomButtonReserve)
+                        .padding(horizontal = WakeSyncSpacing.xxl)
                 ) {
                     if (state.isSimulated && !isAmbient) {
                         SimulationBadge(modifier = Modifier.padding(bottom = WakeSyncSpacing.xs))
                     }
 
+                    // Phase label demoted to Label: the rest-state text below is the one
+                    // primary datum of this phase (rule 1.1), so only one of the two can be
+                    // Title-sized — otherwise "Reposo Ligero" stops reading as the headline.
                     Text(
                         text = stringResource(R.string.nap_monitoring_title),
-                        style = WakeSyncTextStyles.Title,
+                        style = WakeSyncTextStyles.Label,
                         color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.AmberSand,
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
 
+                    // Rest-state label: kept to one line (Title, not Display) so it never
+                    // pushes Score/FC behind Detener/simular on longer labels ("Reposo Ligero").
                     Text(
                         text = when (biometrics.restState) {
                             RestState.AWAKE -> stringResource(R.string.rest_state_awake)
@@ -190,9 +174,11 @@ fun NapScreen(
                             RestState.SENSOR_UNAVAILABLE -> stringResource(R.string.rest_state_sensor_unavailable)
                             RestState.UNKNOWN -> stringResource(R.string.rest_state_unknown)
                         },
-                        style = WakeSyncTextStyles.Display,
+                        style = WakeSyncTextStyles.Title,
                         color = WakeSyncColors.CreamSoft,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
 
@@ -242,14 +228,16 @@ fun NapScreen(
                         progress = progress,
                         color = WakeSyncColors.PlumLavender,
                         trackColor = WakeSyncColors.PlumLavenderMuted,
-                        modifier = Modifier.size(200.dp)
+                        modifier = Modifier.size(WakeSyncSpacing.progressArcDiameter)
                     )
                 }
 
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(horizontal = 24.dp)
+                    modifier = Modifier
+                        .padding(bottom = WakeSyncSpacing.bottomButtonReserve)
+                        .padding(horizontal = WakeSyncSpacing.xxl)
                 ) {
                     if (state.isSimulated && !isAmbient) {
                         SimulationBadge(modifier = Modifier.padding(bottom = WakeSyncSpacing.xs))
@@ -292,14 +280,13 @@ fun NapScreen(
                 )
             }
         }
-        }
 
         if (!isAmbient) {
             if (showSimulate) {
                 Row(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 30.dp),
+                        .padding(bottom = WakeSyncSpacing.primaryButtonBottomPadding),
                     horizontalArrangement = Arrangement.spacedBy(WakeSyncSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -319,7 +306,7 @@ fun NapScreen(
                     onClick = onStopSession,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 30.dp)
+                        .padding(bottom = WakeSyncSpacing.primaryButtonBottomPadding)
                 )
             }
         }
