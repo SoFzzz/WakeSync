@@ -52,4 +52,23 @@ object WakeSyncSpacing {
 
     /** Grosor de borde de contorno (tarjeta sin conexión, botón `[Reintentar]`, ambiente): 1dp. */
     val borderHairline: Dp = 1.dp
+
+    /** Área táctil mínima (sección 3.4): 48dp, también alto mínimo de la fila de historial (4.9). */
+    val minTouchTarget: Dp = 48.dp
+
+    /** Ícono de fila/botón (tipo de sesión en 4.9, ícono de 4.3). */
+    val iconSmall: Dp = 20.dp
+
+    /** Ícono grande del estado vacío (componente 4.10). */
+    val iconLarge: Dp = 32.dp
+
+    /** Punto indicador "tiene insight" de la fila de historial (4.9). */
+    val statusDot: Dp = 8.dp
+
+    /** Círculo visible del botón secundario de ícono (4.3) dentro de su área táctil de 48dp. */
+    val secondaryChipVisual: Dp = 36.dp
+
+    /** Arco de carga pequeño de la tarjeta de insight (variante `Loading` de 4.4) y su trazo. */
+    val progressSmall: Dp = 28.dp
+    val progressSmallStroke: Dp = 3.dp
 }

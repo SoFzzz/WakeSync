@@ -46,12 +46,17 @@ import com.wakesync.ui.theme.WakeSyncTextStyles
  * `Column` (matches `TransitScreen`'s pattern). Wrapping the arc in that same reserve used to
  * shift its center ~32dp up, making it non-concentric with the screen (regression fixed here).
  * The calibration ring no longer rotates: the progress sweep alone already shows advancement.
+ *
+ * F17 (section 5.4): while the nap is active, a secondary `directions` icon (4.3) left of
+ * `[Detener]` opens the Transporte destination flow via [onRequestTransit]; confirming a
+ * destination there raises the session conflict dialog instead of silently replacing the nap.
  */
 @Composable
 fun NapScreen(
     state: WakeSyncState,
     onStopSession: () -> Unit,
     onSimulateNap: () -> Unit,
+    onRequestTransit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isAmbient = LocalAmbientMode.current
@@ -62,6 +67,9 @@ fun NapScreen(
 
     val showSimulate = state.isSimulated &&
         (napState.phase == NapPhase.CALIBRATING || napState.phase == NapPhase.MONITORING)
+    val showRequestTransit = napState.phase == NapPhase.CALIBRATING ||
+        napState.phase == NapPhase.MONITORING ||
+        napState.phase == NapPhase.REST_CONFIRMED
 
     Box(
         modifier = modifier
@@ -282,32 +290,34 @@ fun NapScreen(
         }
 
         if (!isAmbient) {
-            if (showSimulate) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = WakeSyncSpacing.primaryButtonBottomPadding),
-                    horizontalArrangement = Arrangement.spacedBy(WakeSyncSpacing.sm),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    PrimaryBottomButton(
-                        text = stringResource(R.string.btn_stop),
-                        onClick = onStopSession
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = WakeSyncSpacing.primaryButtonBottomPadding),
+                horizontalArrangement = Arrangement.spacedBy(WakeSyncSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (showRequestTransit) {
+                    SecondaryIconChip(
+                        icon = painterResource(R.drawable.ic_directions),
+                        contentDescription = stringResource(R.string.cd_start_transit),
+                        onClick = onRequestTransit
                     )
+                }
+                PrimaryBottomButton(
+                    text = stringResource(R.string.btn_stop),
+                    onClick = onStopSession
+                )
+                if (showSimulate) {
                     SecondaryIconChip(
                         icon = painterResource(R.drawable.ic_fast_forward),
                         contentDescription = stringResource(R.string.btn_simulate_nap),
                         onClick = onSimulateNap
                     )
+                } else if (showRequestTransit) {
+                    // Mirrors the directions chip so [Detener] stays centered on the round bezel.
+                    Spacer(modifier = Modifier.size(WakeSyncSpacing.minTouchTarget))
                 }
-            } else {
-                PrimaryBottomButton(
-                    text = stringResource(R.string.btn_stop),
-                    onClick = onStopSession,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = WakeSyncSpacing.primaryButtonBottomPadding)
-                )
             }
         }
     }

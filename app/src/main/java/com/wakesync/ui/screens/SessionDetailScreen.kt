@@ -25,6 +25,7 @@ import com.wakesync.core.insights.InsightState
 import com.wakesync.core.model.SessionRecord
 import com.wakesync.ui.ambient.LocalAmbientMode
 import com.wakesync.ui.components.InsightCard
+import com.wakesync.ui.components.NoInsightCard
 import com.wakesync.ui.components.PrimaryBottomButton
 import com.wakesync.ui.components.sessionOutcomeStringRes
 import com.wakesync.ui.components.sessionTypeStringRes
@@ -34,48 +35,29 @@ import com.wakesync.ui.theme.WakeSyncSpacing
 import com.wakesync.ui.theme.WakeSyncTextStyles
 
 /**
- * Resumen Post-Sesión con Insight (CR-01, RF-INS-02/03/04) — `wear-design-system` SKILL.md
- * section 6.6.
+ * Screen: Detalle de Historial (RF-INS-03, `wear-design-system` SKILL.md section 5.3). Same
+ * layout as Resumen Post-Sesión (6.6) for an already persisted [record]: `Label` kicker
+ * "Siesta · Completada", `Display` duration, `Label` start date/time, then the insight card.
  *
- * One primary datum (`Display`): session duration. Session type + outcome ("Siesta ·
- * Completada") is the `Label` kicker above it, replacing the previous separate "Resumen de
- * Sesión" heading — `ResponsiveTimeText` (with the same opaque-band pattern as `HomeScreen`)
- * already gives the screen its page context, so a redundant heading wasn't adding
- * information. `[Volver a Inicio]` is the design system's primary bottom button (component
- * 4.2) instead of a plain circular text button; the insight card (component 4.4) is styled
- * with the shared shape/color/typography tokens instead of a one-off `RoundedCornerShape`.
- *
- * The caller (WakeSyncNavHost) is responsible for calling
- * [com.wakesync.core.insights.InsightContract.requestInsight] exactly once for [record],
- * and only after confirming [record] is already visible in
- * [com.wakesync.core.data.SessionHistoryRepository.sessionHistory] — requesting it as soon as
- * sessionType flips to NONE loses a race against the async DataStore write performed by
- * SessionManager.endSession(), which would otherwise show [InsightState.Unavailable] almost
- * always. [InsightState.Idle] is treated the same as [InsightState.Loading] here because the
- * underlying [com.wakesync.core.insights.InsightProvider] instance is a long-lived singleton
- * that may still be Idle right when this screen enters composition.
- *
- * The content scrolls (touch and rotary) so a long insight can never push [Volver a Inicio]
- * off the round screen — this is also what keeps `ResponsiveTimeText` (fixed overlay, top of
- * screen) from ever colliding with the card below it: the column's top `contentPadding`
- * (`WakeSyncSpacing.safeInsetVertical`, the same constant `HomeScreen` reserves for it) scrolls
- * the card's start position below the time text instead of under it.
+ * [insightState] comes from [UiFormatters.resolveDetailInsightState]: a saved
+ * [SessionRecord.insightText] is shown directly (no backend call); null means no insight exists
+ * and none was requested from here, so the `NoInsight` card and `[Generar Insight]` (one call)
+ * are shown instead. Back is the edge swipe or the physical button — no on-screen back button.
  */
 @Composable
-fun SessionSummaryScreen(
+fun SessionDetailScreen(
     record: SessionRecord,
-    insightState: InsightState,
+    insightState: InsightState?,
+    onGenerateInsight: () -> Unit,
     onRetryInsight: () -> Unit,
-    onBackToHome: () -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isAmbient = LocalAmbientMode.current
     val scrollState = rememberScalingLazyListState()
     val screenBackground = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.NavyDeep
 
-    // The back gesture must dismiss the summary the same way [Volver a Inicio] does (F10):
-    // otherwise it re-opens on the next Activity recreation with no way out.
-    BackHandler(onBack = onBackToHome)
+    BackHandler(onBack = onBack)
 
     Box(
         modifier = modifier
@@ -97,10 +79,10 @@ fun SessionSummaryScreen(
             )
         ) {
             item {
-                val sessionLabel = stringResource(sessionTypeStringRes(record.sessionType))
+                val typeLabel = stringResource(sessionTypeStringRes(record.sessionType))
                 val outcomeLabel = stringResource(sessionOutcomeStringRes(record.outcome))
                 Text(
-                    text = "$sessionLabel · $outcomeLabel",
+                    text = "$typeLabel · $outcomeLabel",
                     style = WakeSyncTextStyles.Label,
                     color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.SageTeal,
                     textAlign = TextAlign.Center
@@ -108,7 +90,6 @@ fun SessionSummaryScreen(
             }
 
             item {
-                Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
                 Text(
                     text = UiFormatters.formatSessionDuration(record.durationSeconds),
                     style = WakeSyncTextStyles.Display,
@@ -116,25 +97,38 @@ fun SessionSummaryScreen(
                 )
             }
 
+            item {
+                Text(
+                    text = UiFormatters.formatHistoryDateTime(record.startTimestamp),
+                    style = WakeSyncTextStyles.Label,
+                    color = WakeSyncColors.TanMuted
+                )
+            }
+
             if (!isAmbient) {
                 item {
                     Spacer(modifier = Modifier.height(WakeSyncSpacing.md))
-                    InsightCard(insightState = insightState, onRetryInsight = onRetryInsight)
+                    if (insightState == null) {
+                        NoInsightCard()
+                    } else {
+                        InsightCard(insightState = insightState, onRetryInsight = onRetryInsight)
+                    }
                 }
 
-                item {
-                    Spacer(modifier = Modifier.height(WakeSyncSpacing.lg))
-                    PrimaryBottomButton(
-                        text = stringResource(R.string.btn_back_to_home),
-                        onClick = onBackToHome
-                    )
+                if (insightState == null) {
+                    item {
+                        Spacer(modifier = Modifier.height(WakeSyncSpacing.lg))
+                        PrimaryBottomButton(
+                            text = stringResource(R.string.btn_generate_insight),
+                            onClick = onGenerateInsight
+                        )
+                    }
                 }
             }
         }
 
         if (!isAmbient) {
-            // Opaque band behind TimeText: same pattern as HomeScreen — without it, scrolled
-            // content bleeds through the otherwise-transparent time overlay.
+            // Opaque band behind TimeText (same pattern as SessionSummaryScreen).
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

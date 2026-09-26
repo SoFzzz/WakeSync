@@ -43,6 +43,7 @@ import com.wakesync.ui.screens.DestinationSearchScreen
 import com.wakesync.ui.screens.HistoryScreen
 import com.wakesync.ui.screens.HomeScreen
 import com.wakesync.ui.screens.NapScreen
+import com.wakesync.ui.screens.SessionDetailScreen
 import com.wakesync.ui.screens.SessionSummaryScreen
 import com.wakesync.ui.screens.SettingsScreen
 import com.wakesync.ui.screens.TransitScreen
@@ -65,6 +66,13 @@ private enum class PickerStep { SEARCH, MAP }
  * - The Resumen Post-Sesión screen, shown once the just-ended session's [SessionRecord] is
  *   confirmed present in [SessionHistoryRepository.sessionHistory] (avoids racing the async
  *   DataStore write in SessionManager.endSession()).
+ * - Historial -> Detalle (RF-INS-03): Detalle reads the record live from
+ *   [SessionHistoryRepository.sessionHistory] by id, so an insight generated there shows up
+ *   through the persisted [SessionRecord.insightText]; see [UiFormatters.resolveDetailInsightState]
+ *   for why the shared contract's Ready is not trusted on that screen.
+ * - F17: the destination flow can be opened on top of an active Siesta (NapScreen's directions
+ *   chip); confirming there calls requestStartSession(TRANSIT, destination), which raises
+ *   [ConflictDialog] instead of replacing the nap.
  * - Transversal priority layers for [ActiveAlertOverlay] and [ConflictDialog].
  */
 @Composable
@@ -80,6 +88,8 @@ fun WakeSyncNavHost(
     val coroutineScope = rememberCoroutineScope()
     var isSettingsOpen by remember { mutableStateOf(false) }
     var isHistoryOpen by remember { mutableStateOf(false) }
+    var selectedHistoryRecordId by remember { mutableStateOf<String?>(null) }
+    var detailRequestedForId by remember { mutableStateOf<String?>(null) }
 
     // --- Buscar/Mapa/Confirmar Destino flow (CR-01) ---
     var destinationPickerFor by remember { mutableStateOf<SessionType?>(null) }
@@ -142,29 +152,9 @@ fun WakeSyncNavHost(
     Box(modifier = modifier.fillMaxSize()) {
         // Base Navigation Layer
         when {
-            state.sessionType == SessionType.NAP -> {
-                // Active session: swipe is absorbed here (never reaches the system-level
-                // dismiss) but deliberately does nothing (enabled = false) — a stray edge
-                // swipe must not end an in-progress Siesta.
-                DismissibleScreen(onBack = {}, enabled = false) {
-                    NapScreen(
-                        state = state,
-                        onStopSession = { sessionManager.endSession(SessionOutcome.CANCELLED) },
-                        onSimulateNap = onSimulateNap
-                    )
-                }
-            }
-
-            state.sessionType == SessionType.TRANSIT -> {
-                DismissibleScreen(onBack = {}, enabled = false) {
-                    TransitScreen(
-                        state = state,
-                        onStopSession = { sessionManager.endSession(SessionOutcome.CANCELLED) },
-                        onSimulateRoute = onSimulateRoute
-                    )
-                }
-            }
-
+            // Checked before the session branches on purpose (F17): the Transporte flow can be
+            // opened from an active Siesta, and must show over NapScreen until it is confirmed or
+            // dismissed. From Inicio no session is running, so the order changes nothing there.
             destinationPickerFor != null -> {
                 val pickerContract = DestinationSearchProvider.get()
                 val fallbackPickerStateFlow = remember { MutableStateFlow<DestinationPickerState>(DestinationPickerState.Idle) }
@@ -262,6 +252,34 @@ fun WakeSyncNavHost(
                 }
             }
 
+            state.sessionType == SessionType.NAP -> {
+                // Active session: swipe is absorbed here (never reaches the system-level
+                // dismiss) but deliberately does nothing (enabled = false) — a stray edge
+                // swipe must not end an in-progress Siesta.
+                DismissibleScreen(onBack = {}, enabled = false) {
+                    NapScreen(
+                        state = state,
+                        onStopSession = { sessionManager.endSession(SessionOutcome.CANCELLED) },
+                        onSimulateNap = onSimulateNap,
+                        onRequestTransit = {
+                            DestinationSearchProvider.get()?.reset()
+                            pickerStep = PickerStep.SEARCH
+                            destinationPickerFor = SessionType.TRANSIT
+                        }
+                    )
+                }
+            }
+
+            state.sessionType == SessionType.TRANSIT -> {
+                DismissibleScreen(onBack = {}, enabled = false) {
+                    TransitScreen(
+                        state = state,
+                        onStopSession = { sessionManager.endSession(SessionOutcome.CANCELLED) },
+                        onSimulateRoute = onSimulateRoute
+                    )
+                }
+            }
+
             isSettingsOpen -> {
                 DismissibleScreen(onBack = { isSettingsOpen = false }) {
                     SettingsScreen(
@@ -281,10 +299,40 @@ fun WakeSyncNavHost(
             }
 
             isHistoryOpen -> {
-                DismissibleScreen(onBack = { isHistoryOpen = false }) {
-                    HistoryScreen(
-                        onBack = { isHistoryOpen = false }
-                    )
+                val detailRecord = selectedHistoryRecordId?.let { id -> history.find { it.id == id } }
+                if (detailRecord != null) {
+                    val closeDetail = { selectedHistoryRecordId = null }
+                    DismissibleScreen(onBack = closeDetail) {
+                        SessionDetailScreen(
+                            record = detailRecord,
+                            insightState = UiFormatters.resolveDetailInsightState(
+                                record = detailRecord,
+                                requestedForId = detailRequestedForId,
+                                contractState = insightState
+                            ),
+                            onGenerateInsight = {
+                                detailRequestedForId = detailRecord.id
+                                insightContract?.requestInsight(detailRecord.startTimestamp)
+                            },
+                            onRetryInsight = {
+                                detailRequestedForId = detailRecord.id
+                                insightContract?.requestInsight(detailRecord.startTimestamp)
+                            },
+                            onBack = closeDetail
+                        )
+                    }
+                } else {
+                    val closeHistory = {
+                        isHistoryOpen = false
+                        selectedHistoryRecordId = null
+                    }
+                    DismissibleScreen(onBack = closeHistory) {
+                        HistoryScreen(
+                            history = history,
+                            onOpenRecord = { id -> selectedHistoryRecordId = id },
+                            onBack = closeHistory
+                        )
+                    }
                 }
             }
 

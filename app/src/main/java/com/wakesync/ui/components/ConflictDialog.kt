@@ -1,5 +1,6 @@
 package com.wakesync.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -7,30 +8,31 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.wear.compose.material3.Button
-import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.Text
 import com.wakesync.R
 import com.wakesync.core.model.SessionConflict
-import com.wakesync.core.model.SessionType
 import com.wakesync.ui.theme.WakeSyncColors
+import com.wakesync.ui.theme.WakeSyncSpacing
+import com.wakesync.ui.theme.WakeSyncTextStyles
 
 /**
- * Mutual exclusion dialog resolving concurrent session start requests (RF-CORE-02).
- * Prompts user to confirm whether to cancel active mode to begin new mode, or keep existing.
+ * Mutual exclusion dialog resolving concurrent session start requests (RF-CORE-02, F17) —
+ * design system component 4.8 (`FullScreenDialog` pattern) per section 5.4.
+ *
+ * Full-screen `surface` (NavyDeep, never ambient) with `Title` + `Body` and two icon actions
+ * (4.3): `close` keeps the running session, `check` (primary RoseGold) ends it and starts the
+ * requested one with its destination. The physical back button counts as `close`. The empty
+ * `pointerInput` stops taps from reaching the session screen composed underneath: without it,
+ * a tap outside the two buttons would fall through to e.g. NapScreen's `[Detener]`.
  */
 @Composable
 fun ConflictDialog(
@@ -38,89 +40,54 @@ fun ConflictDialog(
     onResolve: (proceedWithNew: Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    BackHandler { onResolve(false) }
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(WakeSyncColors.PureBlack),
+            .background(WakeSyncColors.NavyDeep)
+            .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } },
         contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = WakeSyncSpacing.xl, vertical = WakeSyncSpacing.md),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             Text(
                 text = stringResource(R.string.conflict_dialog_title),
+                style = WakeSyncTextStyles.Title,
                 color = WakeSyncColors.CreamSoft,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            val currentName = if (conflict.runningSession == SessionType.NAP) {
-                stringResource(R.string.title_nap)
-            } else {
-                stringResource(R.string.title_transit)
-            }
-
-            val requestedName = if (conflict.requestedSession == SessionType.NAP) {
-                stringResource(R.string.title_nap)
-            } else {
-                stringResource(R.string.title_transit)
-            }
-
+            Spacer(modifier = Modifier.height(WakeSyncSpacing.sm))
             Text(
-                text = stringResource(R.string.conflict_dialog_msg, currentName, requestedName),
+                text = stringResource(
+                    R.string.conflict_dialog_msg,
+                    stringResource(sessionTypeStringRes(conflict.runningSession)),
+                    stringResource(sessionTypeStringRes(conflict.requestedSession))
+                ),
+                style = WakeSyncTextStyles.Body,
                 color = WakeSyncColors.TanMuted,
-                fontSize = 11.sp,
                 textAlign = TextAlign.Center
             )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
+            Spacer(modifier = Modifier.height(WakeSyncSpacing.md))
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                horizontalArrangement = Arrangement.spacedBy(WakeSyncSpacing.xl),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Keep current button (Cancel request)
-                Button(
-                    onClick = { onResolve(false) },
-                    modifier = Modifier.sizeIn(minWidth = 54.dp, minHeight = 48.dp),
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = WakeSyncColors.BlueDeep,
-                        contentColor = WakeSyncColors.CreamSoft
-                    )
-                ) {
-                    Text(
-                        text = stringResource(R.string.btn_cancel),
-                        fontSize = 10.sp,
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                // Proceed with new button (End prior and start requested)
-                Button(
+                SecondaryIconChip(
+                    icon = painterResource(R.drawable.ic_close),
+                    contentDescription = stringResource(R.string.conflict_dialog_keep),
+                    onClick = { onResolve(false) }
+                )
+                SecondaryIconChip(
+                    icon = painterResource(R.drawable.ic_check),
+                    contentDescription = stringResource(R.string.conflict_dialog_proceed),
                     onClick = { onResolve(true) },
-                    modifier = Modifier.sizeIn(minWidth = 54.dp, minHeight = 48.dp),
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = WakeSyncColors.PlumLavender,
-                        contentColor = WakeSyncColors.CreamSoft
-                    )
-                ) {
-                    Text(
-                        text = stringResource(R.string.btn_confirm),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                }
+                    containerColor = WakeSyncColors.RoseGold,
+                    iconTint = WakeSyncColors.NavyDeep
+                )
             }
         }
     }
