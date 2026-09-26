@@ -37,9 +37,15 @@ object WakeSyncSpacing {
      */
     val bottomButtonReserve: Dp = 64.dp
 
-    /** Diámetro del arco de progreso central (componente 4.5) en las 3 fases de Siesta —
-     * antes un `200.dp` suelto repetido en cada fase. */
-    val progressArcDiameter: Dp = 200.dp
+    /**
+     * Diámetro del arco de progreso central (componente 4.5) en Siesta y Transporte —
+     * antes un `200.dp` suelto repetido en cada pantalla/fase. F28 (Etapa 5): subido de
+     * 200dp a 212dp para que el anillo abrace más el borde redondo (personalidad "reloj
+     * clásico", sección 1) — con `strokeWidth` 6dp (`StrokeCap.Round`) el radio pintado
+     * queda en 109dp sobre una pantalla de 113.5dp de radio real (227dp de diámetro),
+     * ~4.5dp de aire hasta el cristal, suficiente para no recortarse contra la curvatura.
+     */
+    val progressArcDiameter: Dp = 212.dp
 
     /** `padding(bottom = ...)` del botón primario de borde inferior (componente 4.2). */
     val primaryButtonBottomPadding: Dp = 30.dp

@@ -10,35 +10,41 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.wear.compose.material3.Button
-import androidx.wear.compose.material3.ButtonDefaults
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.wear.compose.material3.Text
 import com.wakesync.R
 import com.wakesync.core.model.RestState
 import com.wakesync.core.model.WakeSyncState
 import com.wakesync.ui.ambient.LocalAmbientMode
 import com.wakesync.ui.components.CircularProgressArc
+import com.wakesync.ui.components.PrimaryBottomButton
+import com.wakesync.ui.components.SecondaryIconChip
+import com.wakesync.ui.components.SimulationBadge
 import com.wakesync.ui.theme.WakeSyncColors
+import com.wakesync.ui.theme.WakeSyncSpacing
+import com.wakesync.ui.theme.WakeSyncTextStyles
 
 /**
- * Screen 3: Transit Mode (TransitNudge) — SRS 3.1 & 8.5.
+ * Screen 3: Transit Mode (TransitNudge) — SRS 3.1 & 8.5, `wear-design-system` SKILL.md
+ * section 6.3.
  *
- * Displays:
- * - "En Ruta" accent in Green (#00E676).
- * - Straight-line remaining distance (m) + estimated speed (m/s) without text clipping on 454x454 px.
- * - Dynamic alert radius (R_alert) visual indicator.
- * - Rest modulation indicator (AWAKE vs DEEP_REST).
- * - [Simular Ruta] button (visible during TRACKING when isSimulated is true) and [Detener] button (>= 48dp).
+ * One primary datum (`Display`): remaining straight-line distance. Destination name is
+ * `Title`, capped at 2 lines with ellipsis (never a mid-word cut like the pre-Etapa-5
+ * `maxLines = 1` silently truncating "Universidad Cooperativa de" without indicating it).
+ * Speed/radius and the rest-state modulation indicator are `Label`.
+ *
+ * Same layout pattern as the fixed `NapScreen` (F28 in the skill): the progress arc is a
+ * direct child of the outer full-size `Box`, centered on the round bezel independently of
+ * the text below it — `bottomButtonReserve` applies only to the text `Column`. `Detener`
+ * is the design system's primary bottom-anchored button (component 4.2); the bus emoji is
+ * replaced by `ic_route` as a secondary icon chip (component 4.3), shown only in Modo
+ * Simulación, next to the new `SIMULACIÓN` badge (component 4.6).
  */
 @Composable
 fun TransitScreen(
@@ -69,37 +75,42 @@ fun TransitScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(WakeSyncColors.PureBlack),
+            .background(if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.NavyDeep),
         contentAlignment = Alignment.Center
     ) {
-        // Outer visual progress arc in Green (#00E676)
         if (!isAmbient) {
             CircularProgressArc(
                 progress = progress,
                 color = WakeSyncColors.SageTeal,
                 trackColor = WakeSyncColors.SageTealMuted,
-                modifier = Modifier.size(200.dp)
+                modifier = Modifier.size(WakeSyncSpacing.progressArcDiameter)
             )
         }
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(horizontal = 24.dp)
+            modifier = Modifier
+                .padding(bottom = WakeSyncSpacing.bottomButtonReserve)
+                .padding(horizontal = WakeSyncSpacing.xxl)
         ) {
-            // Destination Label
+            if (state.isSimulated && !isAmbient) {
+                SimulationBadge(modifier = Modifier.padding(bottom = WakeSyncSpacing.xs))
+            }
+
+            // Destination name: up to 2 lines with ellipsis, never a mid-word cut — no
+            // marquee (principle 1.3: constant motion breaks the "calm luxury watch" feel).
             Text(
                 text = destName,
+                style = WakeSyncTextStyles.Title,
                 color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.SageTeal,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                maxLines = 1
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
+            Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Primary Metric: Remaining Distance (Glanceability <= 3s)
+            // Primary datum: remaining straight-line distance.
             val distanceText = if (distance != null) {
                 stringResource(R.string.transit_distance_format, distance)
             } else {
@@ -107,15 +118,11 @@ fun TransitScreen(
             }
             Text(
                 text = distanceText,
-                color = WakeSyncColors.CreamSoft,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
+                style = WakeSyncTextStyles.Display,
+                color = WakeSyncColors.CreamSoft
             )
+            Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
 
-            Spacer(modifier = Modifier.height(2.dp))
-
-            // Secondary Metric: Speed + Dynamic Radius
             val speedText = if (speed != null) {
                 stringResource(R.string.transit_speed_format, speed)
             } else {
@@ -123,59 +130,46 @@ fun TransitScreen(
             }
             Text(
                 text = "$speedText • R: ${radius.toInt()}m",
+                style = WakeSyncTextStyles.Label,
                 color = WakeSyncColors.TanMuted,
-                fontSize = 11.sp,
                 textAlign = TextAlign.Center
             )
 
-            // Rest State Modulation Indicator
             Text(
                 text = if (isDeepRest) stringResource(R.string.transit_state_deep_rest) else stringResource(R.string.transit_state_awake),
+                style = WakeSyncTextStyles.Label,
                 color = if (isDeepRest) WakeSyncColors.PlumLavender else WakeSyncColors.SageTeal,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center
             )
+        }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Controls Row (Stop + Simulation Trigger)
-            if (!isAmbient) {
+        if (!isAmbient) {
+            if (state.isSimulated) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = WakeSyncSpacing.primaryButtonBottomPadding),
+                    horizontalArrangement = Arrangement.spacedBy(WakeSyncSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Stop button (>= 48dp x 48dp)
-                    Button(
-                        onClick = onStopSession,
-                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
-                        shape = CircleShape,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = WakeSyncColors.BlueDeep,
-                            contentColor = WakeSyncColors.CreamSoft
-                        )
-                    ) {
-                        Text(text = stringResource(R.string.btn_stop), fontSize = 10.sp)
-                    }
-
-                    // [Simular Ruta] button (only shown when isSimulated is true, >= 48dp x 48dp)
-                    if (state.isSimulated) {
-                        Button(
-                            onClick = onSimulateRoute,
-                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
-                            shape = CircleShape,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = WakeSyncColors.SageTealMuted,
-                                contentColor = WakeSyncColors.SageTeal
-                            )
-                        ) {
-                            Text(
-                                text = "🚌",
-                                fontSize = 14.sp
-                            )
-                        }
-                    }
+                    PrimaryBottomButton(
+                        text = stringResource(R.string.btn_stop),
+                        onClick = onStopSession
+                    )
+                    SecondaryIconChip(
+                        icon = painterResource(R.drawable.ic_route),
+                        contentDescription = stringResource(R.string.btn_simulate_route),
+                        onClick = onSimulateRoute
+                    )
                 }
+            } else {
+                PrimaryBottomButton(
+                    text = stringResource(R.string.btn_stop),
+                    onClick = onStopSession,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = WakeSyncSpacing.primaryButtonBottomPadding)
+                )
             }
         }
     }

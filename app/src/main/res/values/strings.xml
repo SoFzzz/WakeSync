@@ -92,10 +92,12 @@
     <string name="history_empty_state">Aún no hay sesiones</string>
 
     <!-- Destination Picker: Buscar Destino (CR-01, RF-PLC-01/02) -->
-    <string name="title_dest_search">Buscar Destino</string>
+    <string name="title_dest_search">Destino</string>
     <string name="dest_search_hint">Escribe o dicta un destino</string>
-    <string name="btn_search">Buscar Destino</string>
+    <string name="btn_search">Buscar</string>
+    <string name="dest_search_subtitle">Voz o teclado</string>
     <string name="btn_choose_on_map">Elegir en Mapa</string>
+    <string name="dest_choose_on_map_subtitle">Elige un punto en el mapa</string>
     <string name="dest_search_min_chars_hint">Escribe al menos 3 caracteres</string>
     <string name="dest_search_no_results">Sin resultados</string>
     <string name="transit_select_destination_prompt">Elige tu destino</string>

@@ -193,8 +193,7 @@ fun WakeSyncNavHost(
                                 onOpenMap = {
                                     pickerStep = PickerStep.MAP
                                     pickerContract?.openMap(null)
-                                },
-                                onExit = { exitPicker() }
+                                }
                             )
                         }
 
@@ -217,8 +216,7 @@ fun WakeSyncNavHost(
                                 image = pickerStateValue.image,
                                 onPan = { dx, dy -> pickerContract?.panMap(dx, dy) },
                                 onZoom = { delta -> pickerContract?.zoomMap(delta) },
-                                onPinCenter = { pickerContract?.pinMapCenter() },
-                                onExit = { exitPicker() }
+                                onPinCenter = { pickerContract?.pinMapCenter() }
                             )
                         }
 

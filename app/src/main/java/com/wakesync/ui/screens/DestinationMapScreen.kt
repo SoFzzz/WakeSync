@@ -34,6 +34,8 @@ import androidx.wear.compose.material3.Text
 import com.wakesync.R
 import com.wakesync.ui.ambient.LocalAmbientMode
 import com.wakesync.ui.theme.WakeSyncColors
+import com.wakesync.ui.theme.WakeSyncSpacing
+import com.wakesync.ui.theme.WakeSyncTextStyles
 
 /**
  * Mirrors [com.wakesync.places.DestinationSearchRepository.MAP_REQUEST_SIZE_PX] (227 logical px,
@@ -60,7 +62,7 @@ private val MAPBOX_LOGO_HEIGHT_DP = 15.dp
 private val MAPBOX_LOGO_TOP_PADDING_DP = 12.dp
 
 /**
- * Mapa de Destino (CR-01, RF-PLC-03).
+ * Mapa de Destino (CR-01, RF-PLC-03) — `wear-design-system` SKILL.md section 6.8.
  *
  * ASSUMPTION (verify on-device before trusting drag/zoom accuracy): the backend renders the
  * static map at [MAP_IMAGE_SIZE_DP] logical px with scale=2, which decodes to a 454x454
@@ -72,6 +74,16 @@ private val MAPBOX_LOGO_TOP_PADDING_DP = 12.dp
  *
  * The pin is always drawn by this screen at the exact center; the returned image never
  * contains a marker (RF-PLC-03).
+ *
+ * F15 fix, verified on-device: `.onRotaryScrollEvent` sat *after* `.focusRequester()/
+ * .focusable()` in the modifier chain, which doesn't match the canonical Wear rotary-input
+ * order from the official rotary codelab (`onRotaryScrollEvent` first, then the modifiers
+ * that grant it focus) — reordered here. Confirmed on `emulator-5554` with
+ * `adb shell input rotaryencoder scroll --axis SCROLL,<n>`: positive values zoom in, negative
+ * values zoom out, and the image visibly stops changing at both ends (levels 10 and 19,
+ * `zoomMap`'s clamp) after repeated scrolls past each limit. No back arrow, and no `onExit`
+ * parameter either: `DismissibleScreen` already maps swipe/back to exiting the whole picker
+ * flow (section 5.2) — this screen has no exit action of its own.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -80,7 +92,6 @@ fun DestinationMapScreen(
     onPan: (dxScreenPx: Float, dyScreenPx: Float) -> Unit,
     onZoom: (delta: Int) -> Unit,
     onPinCenter: () -> Unit,
-    onExit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isAmbient = LocalAmbientMode.current
@@ -94,13 +105,14 @@ fun DestinationMapScreen(
         modifier = modifier
             .fillMaxSize()
             .background(WakeSyncColors.PureBlack)
-            .focusRequester(focusRequester)
-            .focusable()
             .onRotaryScrollEvent { event ->
-                // Sign convention verified informally; flip if the emulator's crown zooms inverted.
+                // Sign convention confirmed on-device (F15, see class KDoc): positive
+                // verticalScrollPixels zooms in, negative zooms out.
                 onZoom(if (event.verticalScrollPixels > 0f) -1 else 1)
                 true
             }
+            .focusRequester(focusRequester)
+            .focusable()
             .pointerInput(Unit) {
                 detectDragGestures { change, dragAmount ->
                     change.consume()
@@ -146,34 +158,23 @@ fun DestinationMapScreen(
                 .height(MAPBOX_LOGO_HEIGHT_DP)
         )
 
-        // Required map data attribution (Mapbox / OpenStreetMap), always visible, even in ambient.
+        // Required map data attribution (Mapbox / OpenStreetMap), always visible, even in
+        // ambient. Kept on the dedicated LegalAttribution token (9sp), not the Label token
+        // (12sp): at this vertical position the round screen is only ~110dp wide, and 12sp
+        // measured wider than that on-device — the full "© Mapbox © OpenStreetMap" string
+        // needs 9sp to stay complete and legible inside that chord (RNF-PLC-03).
         Text(
             text = stringResource(R.string.map_attribution),
-            fontSize = 8.sp,
+            style = WakeSyncTextStyles.LegalAttribution,
             color = WakeSyncColors.CreamSoft,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = ATTRIBUTION_BOTTOM_PADDING_DP)
                 .background(WakeSyncColors.PureBlack.copy(alpha = 0.6f), CircleShape)
-                .padding(horizontal = 4.dp)
+                .padding(horizontal = WakeSyncSpacing.xs)
         )
 
         if (!isAmbient) {
-            Button(
-                onClick = onExit,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(top = 8.dp, start = 8.dp)
-                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
-                shape = CircleShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = WakeSyncColors.BlueDeep.copy(alpha = 0.75f),
-                    contentColor = WakeSyncColors.CreamSoft
-                )
-            ) {
-                Text(text = "←", fontSize = 14.sp)
-            }
-
             Button(
                 onClick = onPinCenter,
                 modifier = Modifier
