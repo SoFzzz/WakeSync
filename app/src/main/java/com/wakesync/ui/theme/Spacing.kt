@@ -49,4 +49,7 @@ object WakeSyncSpacing {
 
     /** `padding(bottom = ...)` del botón primario de borde inferior (componente 4.2). */
     val primaryButtonBottomPadding: Dp = 30.dp
+
+    /** Grosor de borde de contorno (tarjeta sin conexión, botón `[Reintentar]`, ambiente): 1dp. */
+    val borderHairline: Dp = 1.dp
 }

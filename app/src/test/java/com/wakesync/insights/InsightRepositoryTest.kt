@@ -1,5 +1,6 @@
 package com.wakesync.insights
 
+import com.wakesync.core.insights.InsightFailureReason
 import com.wakesync.core.insights.InsightState
 import com.wakesync.core.model.SessionOutcome
 import com.wakesync.core.model.SessionRecord
@@ -112,13 +113,75 @@ class InsightRepositoryTest {
     }
 
     @Test
-    fun `requestInsight emits Unavailable on network failure without throwing`() = testScope.runTest {
+    fun `requestInsight emits Unavailable OFFLINE on network failure without throwing`() = testScope.runTest {
         fakeBackendClient.insightResult = ApiResult.NetworkUnavailable
 
         repository.requestInsight(testTimestamp)
         advanceUntilIdle()
 
-        assertEquals(InsightState.Unavailable, repository.state.value)
+        assertEquals(InsightState.Unavailable(InsightFailureReason.OFFLINE), repository.state.value)
+    }
+
+    @Test
+    fun `requestInsight emits Unavailable FAILED on timeout`() = testScope.runTest {
+        fakeBackendClient.insightResult = ApiResult.Timeout
+
+        repository.requestInsight(testTimestamp)
+        advanceUntilIdle()
+
+        assertEquals(InsightState.Unavailable(InsightFailureReason.FAILED), repository.state.value)
+    }
+
+    @Test
+    fun `requestInsight emits Unavailable FAILED on http error`() = testScope.runTest {
+        fakeBackendClient.insightResult = ApiResult.HttpError(400)
+
+        repository.requestInsight(testTimestamp)
+        advanceUntilIdle()
+
+        assertEquals(InsightState.Unavailable(InsightFailureReason.FAILED), repository.state.value)
+    }
+
+    @Test
+    fun `requestInsight emits Unavailable FAILED on parse error`() = testScope.runTest {
+        fakeBackendClient.insightResult = ApiResult.ParseError
+
+        repository.requestInsight(testTimestamp)
+        advanceUntilIdle()
+
+        assertEquals(InsightState.Unavailable(InsightFailureReason.FAILED), repository.state.value)
+    }
+
+    @Test
+    fun `requestInsight emits Unavailable FAILED when no record matches without calling backend`() =
+        testScope.runTest {
+            currentRecords = mutableListOf()
+
+            repository.requestInsight(testTimestamp)
+            advanceUntilIdle()
+
+            assertEquals(InsightState.Unavailable(InsightFailureReason.FAILED), repository.state.value)
+            assertEquals(null, fakeBackendClient.requestedSessionType)
+        }
+
+    @Test
+    fun `requestInsight sends arrival outcome as COMPLETED`() = testScope.runTest {
+        currentRecords = mutableListOf(
+            sampleRecord.copy(sessionType = SessionType.TRANSIT, outcome = SessionOutcome.INTERRUPTED_BY_ARRIVAL)
+        )
+
+        repository.requestInsight(testTimestamp)
+        advanceUntilIdle()
+
+        assertEquals("COMPLETED", fakeBackendClient.requestedOutcome)
+    }
+
+    @Test
+    fun `toBackendOutcome only remaps INTERRUPTED_BY_ARRIVAL`() {
+        assertEquals("COMPLETED", InsightRepository.toBackendOutcome(SessionOutcome.COMPLETED))
+        assertEquals("COMPLETED", InsightRepository.toBackendOutcome(SessionOutcome.INTERRUPTED_BY_ARRIVAL))
+        assertEquals("TIMED_OUT", InsightRepository.toBackendOutcome(SessionOutcome.TIMED_OUT))
+        assertEquals("CANCELLED", InsightRepository.toBackendOutcome(SessionOutcome.CANCELLED))
     }
 
     @Test
@@ -127,7 +190,7 @@ class InsightRepositoryTest {
 
         repository.requestInsight(testTimestamp)
         advanceUntilIdle()
-        assertEquals(InsightState.Unavailable, repository.state.value)
+        assertEquals(InsightState.Unavailable(InsightFailureReason.FAILED), repository.state.value)
 
         // Switch to success
         fakeBackendClient.insightResult = ApiResult.Success("Segundo intento exitoso.")

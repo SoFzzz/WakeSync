@@ -3,6 +3,7 @@
 package com.wakesync.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -30,6 +31,7 @@ import androidx.wear.compose.material3.Text
 import com.google.android.horologist.compose.layout.ResponsiveTimeText
 import com.google.android.horologist.compose.rotaryinput.rotaryWithScroll
 import com.wakesync.R
+import com.wakesync.core.insights.InsightFailureReason
 import com.wakesync.core.insights.InsightState
 import com.wakesync.core.model.SessionOutcome
 import com.wakesync.core.model.SessionRecord
@@ -81,6 +83,7 @@ fun SessionSummaryScreen(
 ) {
     val isAmbient = LocalAmbientMode.current
     val scrollState = rememberScalingLazyListState()
+    val screenBackground = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.NavyDeep
 
     // The back gesture must dismiss the summary the same way [Volver a Inicio] does (F10):
     // otherwise it re-opens on the next Activity recreation with no way out.
@@ -89,7 +92,7 @@ fun SessionSummaryScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(WakeSyncColors.PureBlack),
+            .background(screenBackground),
         contentAlignment = Alignment.Center
     ) {
         ScalingLazyColumn(
@@ -153,7 +156,7 @@ fun SessionSummaryScreen(
                     .fillMaxWidth()
                     .height(WakeSyncSpacing.xxxl)
                     .align(Alignment.TopCenter)
-                    .background(WakeSyncColors.PureBlack)
+                    .background(screenBackground)
             )
             ResponsiveTimeText()
         }
@@ -162,16 +165,17 @@ fun SessionSummaryScreen(
 
 @Composable
 private fun InsightCard(insightState: InsightState, onRetryInsight: () -> Unit) {
-    // Offline state gets a SlateMist border on the card — the only place that token touches
-    // this component now (see the Unavailable branch below for why not the text/button too).
-    val isUnavailable = insightState is InsightState.Unavailable
+    // Only the offline case gets the SlateMist (section 2.5 "offline") border on the card; a
+    // request that reached the backend and failed is not an offline condition.
+    val isOffline = insightState is InsightState.Unavailable &&
+        insightState.reason == InsightFailureReason.OFFLINE
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(WakeSyncShapes.small)
             .then(
-                if (isUnavailable) {
-                    Modifier.border(1.dp, WakeSyncColors.SlateMist, WakeSyncShapes.small)
+                if (isOffline) {
+                    Modifier.border(WakeSyncSpacing.borderHairline, WakeSyncColors.SlateMist, WakeSyncShapes.small)
                 } else {
                     Modifier
                 }
@@ -207,28 +211,32 @@ private fun InsightCard(insightState: InsightState, onRetryInsight: () -> Unit) 
                 )
             }
 
-            InsightState.Unavailable -> {
-                // SlateMist (offline, section 2.5), not WarningOchre (error): the string
-                // always says "sin conexión", so this is the offline case, not a request
-                // failure. SlateMist measures only ~3.67:1 on this card's BlueDeep fill —
-                // under the 4.5:1 floor for Label-sized text — so it's confined to the card
-                // border (added on the Column above) instead of the text: the message and
-                // the retry button both stay on CreamSoft/onSurface (8.58:1), same as the
-                // Ready branch's text right above this one.
+            is InsightState.Unavailable -> {
+                // SlateMist measures only ~3.67:1 on this card's BlueDeep fill — under the 4.5:1
+                // floor for Label-sized text — so it's confined to borders: the message and the
+                // retry label both stay on CreamSoft/onSurface (8.58:1), same as the Ready branch.
+                val messageRes = when (insightState.reason) {
+                    InsightFailureReason.OFFLINE -> R.string.insight_offline
+                    InsightFailureReason.FAILED -> R.string.insight_failed
+                }
                 Text(
-                    text = stringResource(R.string.insight_unavailable),
+                    text = stringResource(messageRes),
                     style = WakeSyncTextStyles.Label,
                     color = WakeSyncColors.CreamSoft,
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(WakeSyncSpacing.sm))
+                // Same fill as the card, so the SlateMist border (3.67:1 against BlueDeep, above
+                // the 3:1 non-text floor) is what outlines the button — a SlateMistMuted fill was
+                // only 1.21:1 against the card and the button didn't read as a button.
                 Button(
                     onClick = onRetryInsight,
                     modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = WakeSyncColors.SlateMistMuted,
+                        containerColor = WakeSyncColors.BlueDeep,
                         contentColor = WakeSyncColors.CreamSoft
-                    )
+                    ),
+                    border = BorderStroke(WakeSyncSpacing.borderHairline, WakeSyncColors.SlateMist)
                 ) {
                     Text(text = stringResource(R.string.btn_retry), style = WakeSyncTextStyles.Label)
                 }
