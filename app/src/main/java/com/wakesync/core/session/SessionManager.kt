@@ -179,7 +179,25 @@ class SessionManager(
         _state.update {
             it.copy(
                 sessionType = SessionType.NONE,
-                activeAlertLevel = AlertLevel.NONE,
+                // Bug fix (F-alert-race): this used to always force NONE here, racing the
+                // collector in registerAlertController() that mirrors the controller's own
+                // activeAlertLevel — triggerAlert(MODERATE/SOFT) and terminateSession(...,
+                // stopActiveAlert = false) run back-to-back in the same coroutine (see
+                // TransitManager.handleArrival()), so this unconditional NONE almost always
+                // wins and overwrites the collector's MODERATE/SOFT before Compose ever
+                // recomposes with it — ActiveAlertOverlay never shows for a "decoupled
+                // one-shot" alert, even though the haptic pattern is still physically
+                // vibrating. When stopActiveAlert is false, leave activeAlertLevel as-is —
+                // read from `it` (this lambda's current snapshot), not the `currentState`
+                // captured at the top of the function: `_state.update`'s lambda can retry
+                // against a newer value if the alertCollectionJob's collector (a different
+                // coroutine) applies the controller's MODERATE/SOFT emission between that
+                // early read and this update actually landing, and reading the stale
+                // `currentState` here would silently re-introduce the exact same race this
+                // fix exists to close. The controller's own delay(DURATION_LEVEL_*_MS)
+                // already resets it to NONE when the waveform finishes, and the collector
+                // propagates that here.
+                activeAlertLevel = if (stopActiveAlert) AlertLevel.NONE else it.activeAlertLevel,
                 napState = it.napState.copy(
                     phase = when (outcome) {
                         SessionOutcome.COMPLETED -> NapPhase.COMPLETED

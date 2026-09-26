@@ -210,6 +210,39 @@ class SessionManagerTest {
     }
 
     @Test
+    fun endSession_withStopActiveAlertFalse_doesNotOverwriteActiveAlertLevel() {
+        // Reproduces the arrival-alert race (F-alert-race): TransitManager.handleArrival()
+        // calls controller.triggerAlert(MODERATE) and then, in the very next statement,
+        // terminateSession(..., stopActiveAlert = false) — endSession must not race the
+        // collector in registerAlertController() and stomp the just-triggered level back to
+        // NONE, or ActiveAlertOverlay never gets a single composed frame to show it.
+        val mockController = TestAlertController()
+        sessionManager.registerAlertController(mockController)
+        sessionManager.requestStartSession(SessionType.TRANSIT)
+        // startSessionInternal() itself calls cancelAlert() as it starts (unrelated to this
+        // test) — reset here so the assertion below only reflects endSession's own behavior.
+        mockController.cancelCalled = false
+
+        mockController.triggerAlert(AlertLevel.MODERATE)
+        assertEquals(AlertLevel.MODERATE, sessionManager.state.value.activeAlertLevel)
+
+        sessionManager.endSession(SessionOutcome.COMPLETED, stopActiveAlert = false)
+
+        assertFalse("Controller's cancelAlert must NOT be invoked", mockController.cancelCalled)
+        assertEquals(
+            "activeAlertLevel must survive endSession so the overlay can still render it",
+            AlertLevel.MODERATE,
+            sessionManager.state.value.activeAlertLevel
+        )
+        assertEquals(SessionType.NONE, sessionManager.state.value.sessionType)
+
+        // The controller's own waveform-end reset (not endSession) is what clears it, and
+        // the existing collector must still propagate that afterwards.
+        mockController.triggerAlert(AlertLevel.NONE)
+        assertEquals(AlertLevel.NONE, sessionManager.state.value.activeAlertLevel)
+    }
+
+    @Test
     fun acknowledgeSessionEnd_resetsTerminalPhasesToIdle() {
         sessionManager.requestStartSession(SessionType.NAP)
         sessionManager.endSession(SessionOutcome.CANCELLED)

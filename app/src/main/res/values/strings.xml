@@ -118,7 +118,6 @@
     <string name="btn_retry">Reintentar</string>
 
     <!-- Resumen Post-Sesión con Insight (CR-01, RF-INS-02 a 04) -->
-    <string name="title_session_summary">Resumen de Sesión</string>
     <string name="insight_loading">Generando resumen…</string>
     <string name="insight_unavailable">Resumen no disponible sin conexión</string>
     <string name="btn_back_to_home">Volver a Inicio</string>

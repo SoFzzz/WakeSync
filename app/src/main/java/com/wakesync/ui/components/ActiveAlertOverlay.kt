@@ -22,12 +22,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.Text
@@ -35,14 +32,21 @@ import com.wakesync.R
 import com.wakesync.core.model.AlertLevel
 import com.wakesync.ui.ambient.LocalAmbientMode
 import com.wakesync.ui.theme.WakeSyncColors
+import com.wakesync.ui.theme.WakeSyncSpacing
+import com.wakesync.ui.theme.WakeSyncTextStyles
 
 /**
- * Transversal full-screen overlay for active haptic alarms and arrival notifications.
+ * Transversal full-screen overlay for active haptic alarms and arrival notifications
+ * (Transporte arrival alert and Siesta end-of-nap alert) — `wear-design-system` SKILL.md
+ * sections 2.4 and 4.x.
  *
  * Implements strict visual differentiation between self-resolving one-shot alerts
  * (SOFT / MODERATE) and continuous looping alarms requiring active tactile dismissal (URGENT).
- *
- * Features a massive center touch target (>= 80dp) allowing blind tactile dismissal on wrist.
+ * All accent color comes from the `EmberRose` token (`#D47F68`, section 2.4 "Alerta activa" —
+ * already ≥4.5:1 against `background`/`PureBlack`, no raw hex or emoji anywhere here); text
+ * uses the shared `WakeSyncTextStyles` scale instead of loose `fontSize`s, and spacing comes
+ * from `WakeSyncSpacing`. Dismissal stays a single touch on the massive center button
+ * (>= 80dp), same as before.
  */
 @Composable
 fun ActiveAlertOverlay(
@@ -87,7 +91,7 @@ fun ActiveAlertOverlay(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                    .padding(horizontal = WakeSyncSpacing.xxl, vertical = WakeSyncSpacing.lg),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
@@ -99,13 +103,12 @@ fun ActiveAlertOverlay(
                         AlertLevel.SOFT -> stringResource(R.string.alert_soft_title)
                         AlertLevel.NONE -> ""
                     },
+                    style = WakeSyncTextStyles.Title,
                     color = WakeSyncColors.EmberRose,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
 
                 // Nature of alert: Self-resolving vs User action required
                 Text(
@@ -115,14 +118,19 @@ fun ActiveAlertOverlay(
                         AlertLevel.SOFT -> stringResource(R.string.alert_soft_desc)
                         AlertLevel.NONE -> ""
                     },
+                    style = WakeSyncTextStyles.Label,
                     color = if (isUrgent) WakeSyncColors.CreamSoft else WakeSyncColors.TanMuted,
-                    fontSize = 12.sp,
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(WakeSyncSpacing.md))
 
-                // Massive Dismiss Button (>= 80dp touch target, far exceeding 48dp minimum)
+                // Massive Dismiss Button (>= 80dp touch target, far exceeding the 48dp minimum
+                // from section 3.4 — deliberately oversized for blind tactile dismissal).
+                // Contrast bug fixed here (pre-existing, not introduced this stage): a solid
+                // EmberRose fill needs onPrimary/NavyDeep text for the skill's documented
+                // 4.81:1 (section 2.4) — CreamSoft on EmberRose measures only ~2.4:1, well
+                // under AA. BlueDeep's fill keeps CreamSoft, unchanged.
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier
@@ -131,24 +139,22 @@ fun ActiveAlertOverlay(
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isUrgent) WakeSyncColors.EmberRose else WakeSyncColors.BlueDeep,
-                        contentColor = WakeSyncColors.CreamSoft
+                        contentColor = if (isUrgent) WakeSyncColors.NavyDeep else WakeSyncColors.CreamSoft
                     )
                 ) {
                     Text(
                         text = if (isUrgent) stringResource(R.string.btn_dismiss_alert) else stringResource(R.string.btn_stop),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
+                        style = WakeSyncTextStyles.Title,
                         textAlign = TextAlign.Center
                     )
                 }
 
                 if (isUrgent) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(WakeSyncSpacing.sm))
                     Text(
                         text = stringResource(R.string.alert_touch_to_dismiss),
+                        style = WakeSyncTextStyles.Label,
                         color = WakeSyncColors.TanMuted,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center
                     )
                 }
