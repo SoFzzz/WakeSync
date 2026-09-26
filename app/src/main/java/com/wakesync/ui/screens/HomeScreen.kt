@@ -33,15 +33,20 @@ import com.wakesync.ui.theme.WakeSyncTextStyles
 /**
  * Screen 1: Home / Mode Selector (SRS 3.1).
  *
- * Compact list (`wear-design-system` SKILL.md section 6.1): three equally-weighted
- * [ActionChip] rows (Siesta, Transporte, Historial) plus a small [SecondaryIconChip] for
- * Ajustes at the end — replaces the previous ~110dp full-width cards and the oversized
+ * Compact list (`wear-design-system` SKILL.md section 6.1): equally-weighted [ActionChip]
+ * rows (Siesta, Siesta con Destino, Transporte, Historial) plus a small [SecondaryIconChip]
+ * for Ajustes at the end — replaces the previous ~110dp full-width cards and the oversized
  * 48dp-filled settings button.
  *
- * - Nap starts immediately (1 tap, no destination) with an optional "+ Destino" chip that
- *   opens the Buscar/Mapa/Confirmar Destino flow for an optional Nap destination.
+ * - Siesta starts immediately (1 tap, no destination).
+ * - Siesta con Destino opens the same Buscar/Mapa/Confirmar Destino flow as Transporte, but
+ *   for a Nap session — this is a standalone chip, not a button nested inside Siesta's chip:
+ *   [ActionChip] is one action per tap, and `NapScreen` only renders once a session is
+ *   already active (`requestStartSession` starts it immediately), so there is no "about to
+ *   start" Nap screen to attach a nested control to. It replaces the pre-Etapa-3
+ *   "+ Destino" chip that used to be nested inside Siesta's old card.
  * - Transit always routes through that same destination flow (CR-01: the 3 fixed
- *   destinations no longer exist, the user picks any place via Google Maps).
+ *   destinations no longer exist, the user picks any place via Mapbox).
  * - Historial opens an empty-state placeholder screen until the real screen lands (Etapa 7).
  * - Non-blocking runtime permission alert if needed (design system component 4.7).
  */
@@ -94,6 +99,16 @@ fun HomeScreen(
                     title = stringResource(R.string.btn_start_nap),
                     subtitle = stringResource(R.string.nap_calibrating_desc),
                     onClick = onStartNap
+                )
+            }
+
+            item {
+                ActionChip(
+                    icon = painterResource(R.drawable.ic_bedtime),
+                    iconContentDescription = stringResource(R.string.siesta_with_destination_title),
+                    title = stringResource(R.string.siesta_with_destination_title),
+                    subtitle = stringResource(R.string.siesta_with_destination_subtitle),
+                    onClick = { onOpenDestinationSearch(true) }
                 )
             }
 

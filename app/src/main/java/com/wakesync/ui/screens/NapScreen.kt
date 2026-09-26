@@ -16,20 +16,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.wear.compose.material3.Button
-import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.Text
 import com.wakesync.R
 import com.wakesync.core.model.NapPhase
@@ -37,19 +32,22 @@ import com.wakesync.core.model.RestState
 import com.wakesync.core.model.WakeSyncState
 import com.wakesync.ui.ambient.LocalAmbientMode
 import com.wakesync.ui.components.CircularProgressArc
-import com.wakesync.ui.components.SensorUnavailableBanner
+import com.wakesync.ui.components.CompactNotice
+import com.wakesync.ui.components.PrimaryBottomButton
+import com.wakesync.ui.components.SecondaryIconChip
+import com.wakesync.ui.components.SimulationBadge
 import com.wakesync.ui.theme.WakeSyncColors
+import com.wakesync.ui.theme.WakeSyncSpacing
+import com.wakesync.ui.theme.WakeSyncTextStyles
 
 /**
- * Screen 2: Nap Mode (MicroNap) — SRS 3.1 & 8.4.
+ * Screen 2: Nap Mode (MicroNap) — SRS 3.1 & 8.4, `wear-design-system` SKILL.md section 6.2.
  *
- * Implements the 3 normative visual states:
- * 1. Calibrando Basal: Cyan (#00E5FF), rotating 20s progress ring, basal HR.
- * 2. Monitoreando: Amber (#FFD600), live rest score, RestState, live HR. Silent to protect sleep.
- * 3. Reposo Confirmado: Indigo (#7C4DFF), circular 15 min countdown, subtle dimmed palette.
- *
- * Includes [Simular Siesta] button (visible during CALIBRATING/MONITORING when isSimulated is true)
- * and [Detener] button (>= 48dp).
+ * One primary datum per phase (`Display`, 28sp): Calibrando shows the countdown, Monitoreando
+ * shows the rest-state label, Reposo Confirmado shows the remaining time. Heart rate / score /
+ * distance are always secondary (`Label`). The sensor-unavailable notice (component 4.7) sits
+ * in the normal `Column` flow — the pre-F24-fix version overlaid it in a `Box` with
+ * `Alignment.TopCenter` on top of the arc, which was the actual bug, not just the visuals.
  */
 @Composable
 fun NapScreen(
@@ -76,293 +74,252 @@ fun NapScreen(
         label = "CalibrationRotation"
     )
 
+    val showSimulate = state.isSimulated &&
+        (napState.phase == NapPhase.CALIBRATING || napState.phase == NapPhase.MONITORING)
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(WakeSyncColors.PureBlack),
+            .background(if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.NavyDeep),
         contentAlignment = Alignment.Center
     ) {
-        // Sensor Unavailable Overlay banner if needed
-        if (isSensorUnavailable) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 10.dp),
-                contentAlignment = Alignment.TopCenter
-            ) {
-                SensorUnavailableBanner()
-            }
-        }
-
-        // Circular State Presentation
+        // Reserve space for the bottom-anchored button(s) below: without this, the arc+text
+        // group (centered in the full box) can grow tall enough — worst case: simulation
+        // badge + sensor notice both visible — to visually collide with Detener/Simular.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = WakeSyncSpacing.bottomButtonReserve),
+            contentAlignment = Alignment.Center
+        ) {
         when (napState.phase) {
             NapPhase.CALIBRATING -> {
-                // Estado 1: Calibrando Basal (Cian #00E5FF)
-                Box(contentAlignment = Alignment.Center) {
-                    val calibrationProgress = (napState.elapsedSeconds / 20.0f).coerceIn(0.0f, 1.0f)
+                // Estado 1: Calibrando Basal — dato principal = cuenta regresiva
+                val calibrationProgress = (napState.elapsedSeconds / 20.0f).coerceIn(0.0f, 1.0f)
 
-                    if (!isAmbient) {
-                        CircularProgressArc(
-                            progress = calibrationProgress,
-                            color = WakeSyncColors.SteelBlue,
-                            trackColor = WakeSyncColors.SteelBlueMuted,
-                            modifier = Modifier
-                                .size(200.dp)
-                                .rotate(rotationAngle)
-                        )
+                if (!isAmbient) {
+                    CircularProgressArc(
+                        progress = calibrationProgress,
+                        color = WakeSyncColors.SteelBlue,
+                        trackColor = WakeSyncColors.SteelBlueMuted,
+                        modifier = Modifier
+                            .size(200.dp)
+                            .rotate(rotationAngle)
+                    )
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                ) {
+                    if (state.isSimulated && !isAmbient) {
+                        SimulationBadge(modifier = Modifier.padding(bottom = WakeSyncSpacing.xs))
                     }
 
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.nap_calibrating_title),
-                            color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.SteelBlue,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.nap_calibrating_title),
+                        style = WakeSyncTextStyles.Title,
+                        color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.SteelBlue,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
 
-                        val hr = biometrics.currentHeartRate ?: biometrics.baseHeartRate
-                        Text(
-                            text = if (hr != null) stringResource(R.string.nap_current_hr_format, hr) else "-- BPM",
-                            color = WakeSyncColors.CreamSoft,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                    Text(
+                        text = stringResource(
+                            R.string.nap_calibrating_countdown_format,
+                            20 - napState.elapsedSeconds
+                        ),
+                        style = WakeSyncTextStyles.Display,
+                        color = WakeSyncColors.CreamSoft
+                    )
+                    Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
 
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "${20 - napState.elapsedSeconds}s",
-                            color = WakeSyncColors.TanMuted,
-                            fontSize = 11.sp
-                        )
+                    val hr = biometrics.currentHeartRate ?: biometrics.baseHeartRate
+                    Text(
+                        text = if (hr != null) stringResource(R.string.nap_current_hr_format, hr) else "-- BPM",
+                        style = WakeSyncTextStyles.Label,
+                        color = WakeSyncColors.TanMuted
+                    )
 
-                        Spacer(modifier = Modifier.height(8.dp))
-                        NapControlsRow(
-                            isSimulated = state.isSimulated,
-                            onStop = onStopSession,
-                            onSimulate = onSimulateNap,
-                            isAmbient = isAmbient
+                    if (isSensorUnavailable && !isAmbient) {
+                        Spacer(modifier = Modifier.height(WakeSyncSpacing.sm))
+                        CompactNotice(
+                            icon = painterResource(R.drawable.ic_warning),
+                            text = stringResource(R.string.sensor_unavailable_title)
                         )
                     }
                 }
             }
 
             NapPhase.MONITORING -> {
-                // Estado 2: Monitoreando (Ámbar #FFD600)
-                Box(contentAlignment = Alignment.Center) {
-                    val score = biometrics.restScore ?: 0.0f
-                    if (!isAmbient) {
-                        CircularProgressArc(
-                            progress = score,
-                            color = WakeSyncColors.AmberSand,
-                            trackColor = WakeSyncColors.AmberSandMuted,
-                            modifier = Modifier.size(200.dp)
+                // Estado 2: Monitoreando — dato principal = estado de reposo
+                val score = biometrics.restScore ?: 0.0f
+                if (!isAmbient) {
+                    CircularProgressArc(
+                        progress = score,
+                        color = WakeSyncColors.AmberSand,
+                        trackColor = WakeSyncColors.AmberSandMuted,
+                        modifier = Modifier.size(200.dp)
+                    )
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                ) {
+                    if (state.isSimulated && !isAmbient) {
+                        SimulationBadge(modifier = Modifier.padding(bottom = WakeSyncSpacing.xs))
+                    }
+
+                    Text(
+                        text = stringResource(R.string.nap_monitoring_title),
+                        style = WakeSyncTextStyles.Title,
+                        color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.AmberSand,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
+
+                    Text(
+                        text = when (biometrics.restState) {
+                            RestState.AWAKE -> stringResource(R.string.rest_state_awake)
+                            RestState.LIGHT_REST -> stringResource(R.string.rest_state_light)
+                            RestState.DEEP_REST -> stringResource(R.string.rest_state_deep)
+                            RestState.CALIBRATING -> stringResource(R.string.nap_calibrating_title)
+                            RestState.SENSOR_UNAVAILABLE -> stringResource(R.string.rest_state_sensor_unavailable)
+                            RestState.UNKNOWN -> stringResource(R.string.rest_state_unknown)
+                        },
+                        style = WakeSyncTextStyles.Display,
+                        color = WakeSyncColors.CreamSoft,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
+
+                    Text(
+                        text = stringResource(R.string.nap_rest_score_format, score),
+                        style = WakeSyncTextStyles.Label,
+                        color = WakeSyncColors.AmberSand
+                    )
+
+                    val currentHr = biometrics.currentHeartRate
+                    if (currentHr != null) {
+                        Text(
+                            text = stringResource(R.string.nap_current_hr_format, currentHr),
+                            style = WakeSyncTextStyles.Label,
+                            color = WakeSyncColors.TanMuted
                         )
                     }
 
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    ) {
+                    // Optional distance if resting on transit
+                    val dist = napState.distanceToDestinationMeters
+                    if (dist != null) {
                         Text(
-                            text = stringResource(R.string.nap_monitoring_title),
-                            color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.AmberSand,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
+                            text = stringResource(R.string.nap_dest_distance_format, dist),
+                            style = WakeSyncTextStyles.Label,
+                            color = WakeSyncColors.SteelBlue
                         )
+                    }
 
-                        Spacer(modifier = Modifier.height(2.dp))
-
-                        Text(
-                            text = when (biometrics.restState) {
-                                RestState.AWAKE -> stringResource(R.string.rest_state_awake)
-                                RestState.LIGHT_REST -> stringResource(R.string.rest_state_light)
-                                RestState.DEEP_REST -> stringResource(R.string.rest_state_deep)
-                                RestState.CALIBRATING -> stringResource(R.string.nap_calibrating_title)
-                                RestState.SENSOR_UNAVAILABLE -> stringResource(R.string.rest_state_sensor_unavailable)
-                                RestState.UNKNOWN -> stringResource(R.string.rest_state_unknown)
-                            },
-                            color = WakeSyncColors.CreamSoft,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-
-                        Text(
-                            text = stringResource(R.string.nap_rest_score_format, score),
-                            color = WakeSyncColors.AmberSand,
-                            fontSize = 12.sp
-                        )
-
-                        val currentHr = biometrics.currentHeartRate
-                        if (currentHr != null) {
-                            Text(
-                                text = stringResource(R.string.nap_current_hr_format, currentHr),
-                                color = WakeSyncColors.TanMuted,
-                                fontSize = 11.sp
-                            )
-                        }
-
-                        // Optional distance if resting on transit
-                        val dist = napState.distanceToDestinationMeters
-                        if (dist != null) {
-                            Text(
-                                text = stringResource(R.string.nap_dest_distance_format, dist),
-                                color = WakeSyncColors.SteelBlue,
-                                fontSize = 10.sp
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-                        NapControlsRow(
-                            isSimulated = state.isSimulated,
-                            onStop = onStopSession,
-                            onSimulate = onSimulateNap,
-                            isAmbient = isAmbient
+                    if (isSensorUnavailable && !isAmbient) {
+                        Spacer(modifier = Modifier.height(WakeSyncSpacing.sm))
+                        CompactNotice(
+                            icon = painterResource(R.drawable.ic_warning),
+                            text = stringResource(R.string.sensor_unavailable_title)
                         )
                     }
                 }
             }
 
             NapPhase.REST_CONFIRMED -> {
-                // Estado 3: Reposo Confirmado (Índigo #7C4DFF)
-                Box(contentAlignment = Alignment.Center) {
-                    val remainingSec = napState.remainingNapSeconds
-                    val totalSec = 15 * 60f
-                    val progress = (remainingSec / totalSec).coerceIn(0.0f, 1.0f)
+                // Estado 3: Reposo Confirmado — dato principal = tiempo restante
+                val remainingSec = napState.remainingNapSeconds
+                val totalSec = 15 * 60f
+                val progress = (remainingSec / totalSec).coerceIn(0.0f, 1.0f)
 
-                    if (!isAmbient) {
-                        CircularProgressArc(
-                            progress = progress,
-                            color = WakeSyncColors.PlumLavender,
-                            trackColor = WakeSyncColors.PlumLavenderMuted,
-                            modifier = Modifier.size(200.dp)
-                        )
+                if (!isAmbient) {
+                    CircularProgressArc(
+                        progress = progress,
+                        color = WakeSyncColors.PlumLavender,
+                        trackColor = WakeSyncColors.PlumLavenderMuted,
+                        modifier = Modifier.size(200.dp)
+                    )
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                ) {
+                    if (state.isSimulated && !isAmbient) {
+                        SimulationBadge(modifier = Modifier.padding(bottom = WakeSyncSpacing.xs))
                     }
 
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    ) {
+                    Text(
+                        text = stringResource(R.string.nap_deep_rest_title),
+                        style = WakeSyncTextStyles.Title,
+                        color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.PlumLavender,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
+
+                    val minutes = remainingSec / 60
+                    val seconds = remainingSec % 60
+                    Text(
+                        text = stringResource(R.string.nap_remaining_time_format, minutes, seconds),
+                        style = WakeSyncTextStyles.Display,
+                        color = WakeSyncColors.CreamSoft
+                    )
+                    Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
+
+                    val currentHr = biometrics.currentHeartRate
+                    if (currentHr != null) {
                         Text(
-                            text = stringResource(R.string.nap_deep_rest_title),
-                            color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.PlumLavender,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
+                            text = stringResource(R.string.nap_current_hr_format, currentHr),
+                            style = WakeSyncTextStyles.Label,
+                            color = WakeSyncColors.TanMuted
                         )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        val minutes = remainingSec / 60
-                        val seconds = remainingSec % 60
-                        Text(
-                            text = stringResource(R.string.nap_remaining_time_format, minutes, seconds),
-                            color = WakeSyncColors.CreamSoft,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        val currentHr = biometrics.currentHeartRate
-                        if (currentHr != null) {
-                            Text(
-                                text = stringResource(R.string.nap_current_hr_format, currentHr),
-                                color = WakeSyncColors.TanMuted,
-                                fontSize = 11.sp
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Only stop button needed once deep rest is confirmed
-                        Button(
-                            onClick = onStopSession,
-                            modifier = Modifier.sizeIn(minWidth = 54.dp, minHeight = 48.dp),
-                            shape = CircleShape,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = WakeSyncColors.BlueDeep,
-                                contentColor = WakeSyncColors.CreamSoft
-                            )
-                        ) {
-                            Text(text = stringResource(R.string.btn_stop), fontSize = 10.sp)
-                        }
                     }
                 }
             }
 
             else -> {
                 // Completed, Cancelled or Idle fallback
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = stringResource(R.string.title_nap),
-                        color = WakeSyncColors.CreamSoft,
-                        fontSize = 14.sp
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(
-                        onClick = onStopSession,
-                        modifier = Modifier.sizeIn(minWidth = 54.dp, minHeight = 48.dp),
-                        shape = CircleShape
-                    ) {
-                        Text(text = stringResource(R.string.btn_stop), fontSize = 11.sp)
-                    }
-                }
+                Text(
+                    text = stringResource(R.string.title_nap),
+                    style = WakeSyncTextStyles.Title,
+                    color = WakeSyncColors.CreamSoft
+                )
             }
         }
-    }
-}
-
-@Composable
-private fun NapControlsRow(
-    isSimulated: Boolean,
-    onStop: () -> Unit,
-    onSimulate: () -> Unit,
-    isAmbient: Boolean
-) {
-    if (isAmbient) return
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Stop button (>= 48dp x 48dp)
-        Button(
-            onClick = onStop,
-            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
-            shape = CircleShape,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = WakeSyncColors.BlueDeep,
-                contentColor = WakeSyncColors.CreamSoft
-            )
-        ) {
-            Text(text = stringResource(R.string.btn_stop), fontSize = 10.sp)
         }
 
-        // [Simular Siesta] button (only shown when isSimulated is true, >= 48dp x 48dp)
-        if (isSimulated) {
-            Button(
-                onClick = onSimulate,
-                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
-                shape = CircleShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = WakeSyncColors.SteelBlueMuted,
-                    contentColor = WakeSyncColors.SteelBlue
-                )
-            ) {
-                Text(
-                    text = "⚡",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
+        if (!isAmbient) {
+            if (showSimulate) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 30.dp),
+                    horizontalArrangement = Arrangement.spacedBy(WakeSyncSpacing.sm),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PrimaryBottomButton(
+                        text = stringResource(R.string.btn_stop),
+                        onClick = onStopSession
+                    )
+                    SecondaryIconChip(
+                        icon = painterResource(R.drawable.ic_fast_forward),
+                        contentDescription = stringResource(R.string.btn_simulate_nap),
+                        onClick = onSimulateNap
+                    )
+                }
+            } else {
+                PrimaryBottomButton(
+                    text = stringResource(R.string.btn_stop),
+                    onClick = onStopSession,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 30.dp)
                 )
             }
         }

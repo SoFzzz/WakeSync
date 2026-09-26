@@ -11,7 +11,6 @@
 
     <!-- Actions & Buttons -->
     <string name="btn_start_nap">Siesta</string>
-    <string name="btn_add_destination">+ Destino</string>
     <string name="btn_start_transit">Transporte</string>
     <string name="btn_stop">Detener</string>
     <string name="btn_dismiss_alert">Descartar Alarma</string>
@@ -25,6 +24,7 @@
     <!-- Nap Screen Stages -->
     <string name="nap_calibrating_title">Calibrando Basal</string>
     <string name="nap_calibrating_desc">Mantén la calma y respira profundo…</string>
+    <string name="nap_calibrating_countdown_format">%1$ds</string>
     <string name="nap_monitoring_title">Monitoreando</string>
     <string name="nap_deep_rest_title">Reposo Confirmado</string>
     <string name="nap_base_hr_format">FC Base: %1$d BPM</string>
@@ -32,6 +32,11 @@
     <string name="nap_rest_score_format">Score: %1$.2f</string>
     <string name="nap_remaining_time_format">%1$02d:%2$02d</string>
     <string name="nap_dest_distance_format">Destino: %1$.0f m</string>
+    <string name="siesta_with_destination_title">Siesta con Destino</string>
+    <string name="siesta_with_destination_subtitle">Te despierta al llegar</string>
+
+    <!-- Simulation Badge (design system component 4.6) -->
+    <string name="badge_simulation">Simulación</string>
 
     <!-- Transit Screen -->
     <string name="transit_tracking_title">En Ruta</string>

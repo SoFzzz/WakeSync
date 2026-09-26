@@ -24,4 +24,13 @@ object WakeSyncSpacing {
 
     /** 7% de 227dp ≈ 16dp — dentro del rango 5–10% recomendado para listas en Wear. */
     val safeInsetHorizontal: Dp = 16.dp
+
+    /**
+     * Espacio inferior a reservar cuando el contenido centrado de una pantalla (arco + texto)
+     * convive con un botón anclado al borde inferior (componente 4.2, `padding(bottom = 30dp)`
+     * + alto del botón ~48dp + margen de aire). Sin esto, contenido centrado que crece (p. ej.
+     * el aviso de sensor 4.7 o el badge de simulación 4.6 sumados al resto) puede invadir
+     * visualmente el área del botón — caso real corregido en `NapScreen.kt` (Etapa 4).
+     */
+    val bottomButtonReserve: Dp = 64.dp
 }
