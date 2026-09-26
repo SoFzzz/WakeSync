@@ -68,6 +68,15 @@ class NapManager(
     private var dismissalCollectorJob: Job? = null
     private val isTerminating = AtomicBoolean(false)
 
+    /**
+     * F17: start timestamp of the Nap session this manager started, captured right after
+     * requestStartSession. Passed to SessionManager.endSession as expectedStartTimestamp so a late
+     * terminateSession (e.g. stopSession() from the coordinator's teardown thread) can never end a
+     * session started afterwards, such as the Transit started by resolveConflict.
+     */
+    @Volatile
+    private var ownedSessionStartTimestamp: Long? = null
+
     private var currentNapPhase: NapPhase = NapPhase.IDLE
     private var baseHeartRate: Int? = null
     private var restLatencySeconds: Int? = null
@@ -95,6 +104,7 @@ class NapManager(
         remainingNapSeconds = NAP_COUNTDOWN_SECONDS
 
         sessionManager.requestStartSession(SessionType.NAP, destination)
+        ownedSessionStartTimestamp = sessionManager.activeSessionStartTimestamp(SessionType.NAP)
 
         // Cierre 3: absoluteCapJob starts strictly in startSession() covering 40 min total from real start
         absoluteCapJob?.cancel()
@@ -333,7 +343,12 @@ class NapManager(
             absoluteCapJob = null
             dismissalCollectorJob?.cancel()
             dismissalCollectorJob = null
-            sessionManager.endSession(outcome, stopActiveAlert = stopActiveAlert)
+            val owned = ownedSessionStartTimestamp
+            if (owned != null) {
+                sessionManager.endSession(outcome, stopActiveAlert = stopActiveAlert, expectedStartTimestamp = owned)
+            } else {
+                Log.w(TAG, "terminateSession($outcome): this manager never started a session; nothing to end")
+            }
             Log.i(TAG, "Nap session terminated with outcome: $outcome (stopActiveAlert=$stopActiveAlert)")
         }
     }

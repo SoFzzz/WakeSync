@@ -32,12 +32,24 @@ import kotlinx.coroutines.launch
  * Central coordinator of session lifecycle, reactive state, and mutual exclusion (RF-CORE-02).
  *
  * Exposes the immutable StateFlow<WakeSyncState> consumed by all other modules.
+ *
+ * F17 thread safety: [requestStartSession], [resolveConflict], [endSession] and
+ * [activeSessionStartTimestamp] share this instance's monitor (`@Synchronized`). The UI calls
+ * [resolveConflict] on the main thread (end the running session + start the requested one) while
+ * NapManager/TransitManager may end "their" session from a Dispatchers.Default thread at the same
+ * moment; the monitor makes each of those one atomic step, so an [endSession] carrying a stale
+ * `expectedStartTimestamp` always sees the new session and returns without touching it.
+ *
+ * [releaseWakeLock] and [persistRecord] default to the real [WakeLockManager] /
+ * [SessionHistoryRepository] and are overridable so tests can observe them without a Context.
  */
 class SessionManager(
     private val context: Context? = null,
     private val wakeLockManager: WakeLockManager? = context?.let { WakeLockManager(it) },
     private val historyRepository: SessionHistoryRepository? = context?.let { SessionHistoryRepository(it) },
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    private val releaseWakeLock: () -> Unit = { wakeLockManager?.releaseWakeLock() },
+    private val persistRecord: suspend (SessionRecord) -> Unit = { historyRepository?.recordSession(it) }
 ) {
 
     private val _state = MutableStateFlow(WakeSyncState())
@@ -83,6 +95,7 @@ class SessionManager(
      *
      * @return True if session started immediately, false if a conflict requires user resolution.
      */
+    @Synchronized
     fun requestStartSession(type: SessionType, destination: GeoPoint? = null): Boolean {
         val currentType = _state.value.sessionType
         Log.d(TAG, "requestStartSession called: requested=$type, current=$currentType, hasDestination=${destination != null}")
@@ -106,6 +119,7 @@ class SessionManager(
     /**
      * Resolves an active mutual exclusion conflict.
      */
+    @Synchronized
     fun resolveConflict(proceedWithNew: Boolean) {
         val conflict = _state.value.pendingConflict ?: return
         Log.d(TAG, "resolveConflict called: proceedWithNew=$proceedWithNew, running=${conflict.runningSession}, requested=${conflict.requestedSession}")
@@ -117,8 +131,19 @@ class SessionManager(
         }
     }
 
+    /**
+     * Start timestamp (epoch millis) of the active session of [type], or null if no session of that
+     * type is active. NapManager/TransitManager capture it right after starting and pass it as
+     * `expectedStartTimestamp` to [endSession], so they can only ever end the session they own.
+     */
+    @Synchronized
+    fun activeSessionStartTimestamp(type: SessionType): Long? =
+        sessionStartTimestamp.takeIf { type != SessionType.NONE && _state.value.sessionType == type }
+
     private fun startSessionInternal(type: SessionType, destination: GeoPoint?) {
-        sessionStartTimestamp = System.currentTimeMillis()
+        // Strictly increasing, so two sessions never share a start timestamp: it is the identity
+        // endSession checks against expectedStartTimestamp (and the record id insights use).
+        sessionStartTimestamp = maxOf(System.currentTimeMillis(), sessionStartTimestamp + 1)
         wakeLockManager?.acquireWakeLock()
         alertController?.cancelAlert()
 
@@ -148,8 +173,17 @@ class SessionManager(
      * @param outcome Termination outcome of the session.
      * @param stopActiveAlert True to immediately halt active vibration (e.g. CANCELLED or URGENT dismissal).
      *                        False to allow non-repeating one-shot waveforms (SOFT, MODERATE) to finish naturally.
+     * @param expectedStartTimestamp When non-null, only the session started at this timestamp may be
+     *        ended; if another session is active this returns immediately, before cancelling the alert,
+     *        releasing the wake lock or recording anything. Null keeps the unconditional behavior
+     *        ([Detener] button, foreground-service stop action).
      */
-    fun endSession(outcome: SessionOutcome, stopActiveAlert: Boolean = true) {
+    @Synchronized
+    fun endSession(outcome: SessionOutcome, stopActiveAlert: Boolean = true, expectedStartTimestamp: Long? = null) {
+        if (expectedStartTimestamp != null && expectedStartTimestamp != sessionStartTimestamp) {
+            Log.w(TAG, "endSession($outcome) ignored: the caller's session already ended and another one is active")
+            return
+        }
         val currentState = _state.value
         if (currentState.sessionType == SessionType.NONE) return
 
@@ -166,11 +200,11 @@ class SessionManager(
             outcome = outcome
         )
 
-        wakeLockManager?.releaseWakeLock()
+        releaseWakeLock()
 
         scope.launch {
             try {
-                historyRepository?.recordSession(record)
+                persistRecord(record)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to persist session record: ${e.message}", e)
             }

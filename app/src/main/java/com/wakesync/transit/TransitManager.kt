@@ -57,6 +57,15 @@ class TransitManager(
     private var dismissalCollectorJob: Job? = null
     private val isTerminating = AtomicBoolean(false)
 
+    /**
+     * F17: start timestamp of the Transit session this manager started, captured right after
+     * requestStartSession. Passed to SessionManager.endSession as expectedStartTimestamp so a late
+     * terminateSession (e.g. stopSession() from the coordinator's teardown thread) can never end a
+     * session started afterwards, such as the Transit started by resolveConflict.
+     */
+    @Volatile
+    private var ownedSessionStartTimestamp: Long? = null
+
     private var currentTransitPhase: TransitPhase = TransitPhase.IDLE
     private var smoothedSpeedMps: Double = 0.0
     private var lastLocation: GeoPoint? = null
@@ -81,6 +90,7 @@ class TransitManager(
         lastTimestampMs = 0L
 
         sessionManager.requestStartSession(SessionType.TRANSIT, destination)
+        ownedSessionStartTimestamp = sessionManager.activeSessionStartTimestamp(SessionType.TRANSIT)
 
         trackingJob?.cancel()
         trackingJob = scope.launch {
@@ -197,7 +207,12 @@ class TransitManager(
             dismissalCollectorJob = null
             trackingJob?.cancel()
             trackingJob = null
-            sessionManager.endSession(outcome, stopActiveAlert = stopActiveAlert)
+            val owned = ownedSessionStartTimestamp
+            if (owned != null) {
+                sessionManager.endSession(outcome, stopActiveAlert = stopActiveAlert, expectedStartTimestamp = owned)
+            } else {
+                Log.w(TAG, "terminateSession($outcome): this manager never started a session; nothing to end")
+            }
             Log.i(TAG, "Transit session terminated with outcome: $outcome (stopActiveAlert=$stopActiveAlert)")
         }
     }

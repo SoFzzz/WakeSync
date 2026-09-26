@@ -5,6 +5,7 @@ import com.wakesync.core.model.AlertLevel
 import com.wakesync.core.model.GeoPoint
 import com.wakesync.core.model.NapPhase
 import com.wakesync.core.model.SessionOutcome
+import com.wakesync.core.model.SessionRecord
 import com.wakesync.core.model.SessionType
 import com.wakesync.core.model.TransitPhase
 import com.wakesync.core.session.SessionManager
@@ -132,6 +133,54 @@ class SessionManagerTest {
         assertEquals(SessionType.NAP, sessionManager.state.value.sessionType)
         assertEquals("Phase must not be reset to CALIBRATING", NapPhase.MONITORING, sessionManager.state.value.napState.phase)
         assertEquals("Elapsed seconds must not be reset", 60, sessionManager.state.value.napState.elapsedSeconds)
+    }
+
+    @Test
+    fun endSession_withStaleExpectedTimestamp_leavesTheNewSessionUntouched() {
+        var wakeLockReleases = 0
+        val records = mutableListOf<SessionRecord>()
+        val manager = SessionManager(
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+            releaseWakeLock = { wakeLockReleases++ },
+            persistRecord = { records += it }
+        )
+        val destination = GeoPoint(6.2440, -75.5810, "Chosen Destination")
+        manager.requestStartSession(SessionType.NAP)
+        val napStart = manager.activeSessionStartTimestamp(SessionType.NAP)
+        manager.requestStartSession(SessionType.TRANSIT, destination)
+        manager.resolveConflict(proceedWithNew = true)
+        val transitStart = manager.activeSessionStartTimestamp(SessionType.TRANSIT)
+
+        // A late "end my nap" arriving after resolveConflict already started the Transit
+        manager.endSession(SessionOutcome.CANCELLED, expectedStartTimestamp = napStart)
+
+        assertEquals(SessionType.TRANSIT, manager.state.value.sessionType)
+        assertEquals(destination, manager.state.value.transitState.destination)
+        assertEquals(transitStart, manager.activeSessionStartTimestamp(SessionType.TRANSIT))
+        assertEquals("Only the nap's own end releases the wake lock", 1, wakeLockReleases)
+        assertEquals(listOf(SessionType.NAP), records.map { it.sessionType })
+    }
+
+    @Test
+    fun endSession_withMatchingExpectedTimestamp_endsTheSession() {
+        sessionManager.requestStartSession(SessionType.NAP)
+        val napStart = sessionManager.activeSessionStartTimestamp(SessionType.NAP)
+
+        sessionManager.endSession(SessionOutcome.CANCELLED, expectedStartTimestamp = napStart)
+
+        assertEquals(SessionType.NONE, sessionManager.state.value.sessionType)
+    }
+
+    @Test
+    fun activeSessionStartTimestamp_isNullForAnotherTypeAndStrictlyIncreasing() {
+        sessionManager.requestStartSession(SessionType.NAP)
+        val napStart = sessionManager.activeSessionStartTimestamp(SessionType.NAP)
+        assertNull(sessionManager.activeSessionStartTimestamp(SessionType.TRANSIT))
+
+        sessionManager.endSession(SessionOutcome.CANCELLED)
+        sessionManager.requestStartSession(SessionType.NAP)
+
+        assertTrue(sessionManager.activeSessionStartTimestamp(SessionType.NAP)!! > napStart!!)
     }
 
     private class TestAlertController : AlertControllerContract {

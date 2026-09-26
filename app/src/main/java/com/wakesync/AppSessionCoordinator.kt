@@ -13,6 +13,7 @@ import com.wakesync.core.model.RestState
 import com.wakesync.core.model.SessionOutcome
 import com.wakesync.core.model.SessionType
 import com.wakesync.core.model.TransitPhase
+import com.wakesync.core.model.WakeSyncState
 import com.wakesync.core.service.WakeSyncForegroundService
 import com.wakesync.core.session.SessionManager
 import com.wakesync.sensors.SensorRepository
@@ -110,6 +111,51 @@ class AppSessionCoordinator(
             trigger.await()
             napPhase.first { it != NapPhase.CALIBRATING }
         }
+
+        /**
+         * F17: reconciles the running session lifecycle with one observed [state] and returns the
+         * new active type. [SessionManager.resolveConflict] ends the running session and starts the
+         * requested one back-to-back, so a conflated `StateFlow` collector may never observe the
+         * NONE in between: switching directly from one active type to the other therefore runs the
+         * same teardown as NONE first, so the previous session's managers never outlive it (a
+         * leftover NapManager job would otherwise end the new Transit session). Context-free so it
+         * can be unit tested with a recording [SessionLifecycle].
+         */
+        internal fun reconcileSessionLifecycle(
+            active: SessionType,
+            state: WakeSyncState,
+            lifecycle: SessionLifecycle
+        ): SessionType {
+            val target = state.sessionType
+            if (target == active) return active
+            if (target == SessionType.TRANSIT && state.transitState.destination == null) {
+                lifecycle.cancelTransitWithoutDestination()
+                return active
+            }
+            if (active != SessionType.NONE) {
+                if (target != SessionType.NONE) {
+                    Log.i(TAG, "Session type switched $active -> $target without NONE; stopping $active first")
+                }
+                lifecycle.stopActiveSession()
+            }
+            when (target) {
+                SessionType.NAP -> lifecycle.startNap(state)
+                SessionType.TRANSIT -> lifecycle.startTransit(state)
+                SessionType.NONE -> Unit
+            }
+            return target
+        }
+    }
+
+    /**
+     * Side effects the session observer drives. Implemented by [sessionLifecycle] against the real
+     * managers; tests pass a recording fake.
+     */
+    internal interface SessionLifecycle {
+        fun startNap(state: WakeSyncState)
+        fun startTransit(state: WakeSyncState)
+        fun cancelTransitWithoutDestination()
+        fun stopActiveSession()
     }
 
     val napManager: NapManager = NapManager(
@@ -209,57 +255,44 @@ class AppSessionCoordinator(
         }
     }
 
+    private val sessionLifecycle = object : SessionLifecycle {
+        override fun startNap(state: WakeSyncState) {
+            Log.i(TAG, "Starting Nap session lifecycle in background")
+            WakeSyncForegroundService.startService(context, WakeSyncForegroundService.ACTION_START_NAP)
+            restEstimatorEngine.start(scope)
+            if (state.isSimulated) startSimulatedNapBaseline()
+            napManager.startSession(state.napState.destination)
+        }
+
+        override fun startTransit(state: WakeSyncState) {
+            val dest = state.transitState.destination ?: return
+            Log.i(TAG, "Starting Transit session lifecycle")
+            WakeSyncForegroundService.startService(context, WakeSyncForegroundService.ACTION_START_TRANSIT)
+            restEstimatorEngine.start(scope)
+            transitManager.startSession(dest)
+        }
+
+        override fun cancelTransitWithoutDestination() {
+            // RF-TRAN-01: transit never starts without a user-confirmed destination
+            Log.w(TAG, "Transit session requested without a confirmed destination; cancelling")
+            sessionManager.endSession(SessionOutcome.CANCELLED)
+        }
+
+        override fun stopActiveSession() {
+            Log.i(TAG, "Stopping active session managers and simulation")
+            napManager.stopSession()
+            transitManager.stopSession()
+            napRampTrigger = null
+            mockSensorEngine.stopSimulation()
+            restEstimatorEngine.stop()
+        }
+    }
+
     private fun startSessionObserver() {
         sessionObserverJob?.cancel()
         sessionObserverJob = scope.launch {
             sessionManager.state.collectLatest { state ->
-                when (state.sessionType) {
-                    SessionType.NAP -> {
-                        if (currentActiveType != SessionType.NAP) {
-                            currentActiveType = SessionType.NAP
-                            Log.i(TAG, "Starting Nap session lifecycle in background")
-                            WakeSyncForegroundService.startService(
-                                context,
-                                WakeSyncForegroundService.ACTION_START_NAP
-                            )
-                            restEstimatorEngine.start(scope)
-                            if (state.isSimulated) startSimulatedNapBaseline()
-                            napManager.startSession(state.napState.destination)
-                        }
-                    }
-
-                    SessionType.TRANSIT -> {
-                        if (currentActiveType != SessionType.TRANSIT) {
-                            val dest = state.transitState.destination
-                            if (dest == null) {
-                                // RF-TRAN-01: transit never starts without a user-confirmed destination
-                                Log.w(TAG, "Transit session requested without a confirmed destination; cancelling")
-                                sessionManager.endSession(SessionOutcome.CANCELLED)
-                                return@collectLatest
-                            }
-                            currentActiveType = SessionType.TRANSIT
-                            Log.i(TAG, "Starting Transit session lifecycle")
-                            WakeSyncForegroundService.startService(
-                                context,
-                                WakeSyncForegroundService.ACTION_START_TRANSIT
-                            )
-                            restEstimatorEngine.start(scope)
-                            transitManager.startSession(dest)
-                        }
-                    }
-
-                    SessionType.NONE -> {
-                        if (currentActiveType != SessionType.NONE) {
-                            Log.i(TAG, "Stopping active session managers and simulation")
-                            currentActiveType = SessionType.NONE
-                            napManager.stopSession()
-                            transitManager.stopSession()
-                            napRampTrigger = null
-                            mockSensorEngine.stopSimulation()
-                            restEstimatorEngine.stop()
-                        }
-                    }
-                }
+                currentActiveType = reconcileSessionLifecycle(currentActiveType, state, sessionLifecycle)
             }
         }
     }

@@ -1,13 +1,24 @@
 package com.wakesync
 
 import com.wakesync.ai.RestEvaluationResult
+import com.wakesync.core.model.GeoPoint
 import com.wakesync.core.model.NapPhase
 import com.wakesync.core.model.RestState
+import com.wakesync.core.model.SessionOutcome
+import com.wakesync.core.model.SessionRecord
 import com.wakesync.core.model.SessionType
+import com.wakesync.core.model.WakeSyncState
+import com.wakesync.core.session.SessionManager
+import com.wakesync.sleep.NapManager
+import com.wakesync.transit.TransitManager
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -225,5 +236,134 @@ class AppSessionCoordinatorTest {
         runCurrent()
 
         assertTrue(gate.isCompleted)
+    }
+
+    /** Records the lifecycle calls made by [AppSessionCoordinator.reconcileSessionLifecycle]. */
+    private class RecordingLifecycle : AppSessionCoordinator.SessionLifecycle {
+        val calls = mutableListOf<String>()
+        override fun startNap(state: WakeSyncState) { calls += "startNap" }
+        override fun startTransit(state: WakeSyncState) {
+            calls += "startTransit:${state.transitState.destination?.name}"
+        }
+        override fun cancelTransitWithoutDestination() { calls += "cancelTransit" }
+        override fun stopActiveSession() { calls += "stop" }
+    }
+
+    private val chosenDestination = GeoPoint(latitude = 6.2442, longitude = -75.5812, name = "Destino elegido")
+
+    @Test
+    fun `F17 nap to transit via resolveConflict stops the nap exactly once before starting transit`() = runTest {
+        val sessionManager = SessionManager()
+        val lifecycle = RecordingLifecycle()
+        var active = SessionType.NONE
+        // Same loop as AppSessionCoordinator.startSessionObserver, on the test dispatcher: the
+        // collector only runs at runCurrent(), so it cannot observe the NONE that resolveConflict
+        // passes through.
+        val observer = launch {
+            sessionManager.state.collectLatest {
+                active = AppSessionCoordinator.reconcileSessionLifecycle(active, it, lifecycle)
+            }
+        }
+        runCurrent()
+        sessionManager.requestStartSession(SessionType.NAP)
+        runCurrent()
+
+        assertFalse(sessionManager.requestStartSession(SessionType.TRANSIT, chosenDestination))
+        sessionManager.resolveConflict(proceedWithNew = true)
+        runCurrent()
+        observer.cancel()
+
+        assertEquals(listOf("startNap", "stop", "startTransit:Destino elegido"), lifecycle.calls)
+        assertEquals(1, lifecycle.calls.count { it == "stop" })
+        assertEquals(SessionType.TRANSIT, active)
+    }
+
+    @Test
+    fun `an observed NONE between sessions still stops the nap only once`() = runTest {
+        val sessionManager = SessionManager()
+        val lifecycle = RecordingLifecycle()
+        var active = SessionType.NONE
+        val observer = launch {
+            sessionManager.state.collectLatest {
+                active = AppSessionCoordinator.reconcileSessionLifecycle(active, it, lifecycle)
+            }
+        }
+        runCurrent()
+        sessionManager.requestStartSession(SessionType.NAP)
+        runCurrent()
+        sessionManager.endSession(SessionOutcome.CANCELLED)
+        runCurrent()
+        sessionManager.requestStartSession(SessionType.TRANSIT, chosenDestination)
+        runCurrent()
+        observer.cancel()
+
+        assertEquals(listOf("startNap", "stop", "startTransit:Destino elegido"), lifecycle.calls)
+    }
+
+    /** Delegates to the REAL managers, exactly like AppSessionCoordinator.sessionLifecycle does. */
+    private class RealManagersLifecycle(
+        private val napManager: NapManager,
+        private val transitManager: TransitManager
+    ) : AppSessionCoordinator.SessionLifecycle {
+        override fun startNap(state: WakeSyncState) = napManager.startSession(state.napState.destination)
+        override fun startTransit(state: WakeSyncState) {
+            state.transitState.destination?.let { transitManager.startSession(it) }
+        }
+        override fun cancelTransitWithoutDestination() = Unit
+        override fun stopActiveSession() {
+            napManager.stopSession()
+            transitManager.stopSession()
+        }
+    }
+
+    private fun realNapManager(sessionManager: SessionManager, scope: CoroutineScope) = NapManager(
+        sessionManager = sessionManager,
+        restEvaluationFlow = MutableSharedFlow<RestEvaluationResult>(),
+        heartRateFlow = MutableSharedFlow<Int>(),
+        locationFlow = MutableSharedFlow<GeoPoint>(),
+        alertController = null,
+        scope = scope
+    )
+
+    @Test
+    fun `F17 with real managers the chosen Transit survives the nap teardown`() = runTest {
+        var wakeLockReleases = 0
+        val records = mutableListOf<SessionRecord>()
+        val sessionManager = SessionManager(
+            scope = backgroundScope,
+            releaseWakeLock = { wakeLockReleases++ },
+            persistRecord = { records += it }
+        )
+        val napManager = realNapManager(sessionManager, backgroundScope)
+        val transitManager = TransitManager(
+            sessionManager = sessionManager,
+            locationFlow = MutableSharedFlow(),
+            alertController = null,
+            scope = backgroundScope
+        )
+        val lifecycle = RealManagersLifecycle(napManager, transitManager)
+        var active = SessionType.NONE
+        backgroundScope.launch {
+            sessionManager.state.collectLatest {
+                active = AppSessionCoordinator.reconcileSessionLifecycle(active, it, lifecycle)
+            }
+        }
+        runCurrent()
+        sessionManager.requestStartSession(SessionType.NAP)
+        runCurrent()
+
+        assertFalse(sessionManager.requestStartSession(SessionType.TRANSIT, chosenDestination))
+        sessionManager.resolveConflict(proceedWithNew = true)
+        val transitStart = sessionManager.activeSessionStartTimestamp(SessionType.TRANSIT)
+        // The teardown (NapManager.stopSession / TransitManager.stopSession -> endSession) runs only
+        // now, AFTER the Transit already started — the ordering seen on the device (thread 3955).
+        runCurrent()
+
+        assertEquals(SessionType.TRANSIT, sessionManager.state.value.sessionType)
+        assertEquals(chosenDestination, sessionManager.state.value.transitState.destination)
+        assertEquals(transitStart, sessionManager.activeSessionStartTimestamp(SessionType.TRANSIT))
+        assertEquals("Wake lock released only by the nap's own end", 1, wakeLockReleases)
+        runCurrent()
+        assertEquals("No 0 s Transit record", listOf(SessionType.NAP), records.map { it.sessionType })
     }
 }
