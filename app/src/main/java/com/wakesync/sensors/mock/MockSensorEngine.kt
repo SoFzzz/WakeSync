@@ -5,6 +5,7 @@ import com.wakesync.sensors.SensorSource
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -160,11 +161,17 @@ class MockSensorEngine(
     }
 
     /**
-     * Stops active simulation and resets flows.
+     * Stops the active simulation and clears the replay cache of every flow, so a later session
+     * never receives a stale HR/SVM/location left over by a previous simulation (F26: a replayed
+     * NAP_TARGET_HR became the calibrated HR_base; a replayed route point skewed Transit's speed).
      */
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun stopSimulation() {
         activeSimulationJob?.cancel()
         activeSimulationJob = null
+        hrFlow.resetReplayCache()
+        svmFlow.resetReplayCache()
+        locationFlow.resetReplayCache()
     }
 
     /**

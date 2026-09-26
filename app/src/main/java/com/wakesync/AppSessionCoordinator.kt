@@ -20,10 +20,13 @@ import com.wakesync.sensors.mock.MockSensorEngine
 import com.wakesync.sensors.real.RealSensorSource
 import com.wakesync.sleep.NapManager
 import com.wakesync.transit.TransitManager
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -58,6 +61,7 @@ class AppSessionCoordinator(
 
     companion object {
         private const val TAG = "AppSessionCoordinator"
+        private const val SIMULATED_NAP_RAMP_SECONDS = 10
 
         @Volatile
         private var instance: AppSessionCoordinator? = null
@@ -90,6 +94,17 @@ class AppSessionCoordinator(
                 else -> RestState.SENSOR_UNAVAILABLE
             }
         }
+
+        /**
+         * F26: suspends until ⚡ has been tapped ([trigger]) AND the nap has left
+         * [NapPhase.CALIBRATING], in either order. Keeps the F18 guarantee (the simulated descent
+         * never bleeds into the calibration window) while letting ⚡ be tapped at any time.
+         * Pure and Context-free so it can be unit tested.
+         */
+        internal suspend fun awaitNapRampGate(trigger: Deferred<Unit>, napPhase: Flow<NapPhase>) {
+            trigger.await()
+            napPhase.first { it != NapPhase.CALIBRATING }
+        }
     }
 
     val napManager: NapManager = NapManager(
@@ -113,6 +128,10 @@ class AppSessionCoordinator(
     private var biometricsRelayJob: Job? = null
     private var simulationModeRelayJob: Job? = null
     private var currentActiveType: SessionType = SessionType.NONE
+
+    /** F26: completed by ⚡ to release the simulated HR descent; null outside a simulated nap. */
+    @Volatile
+    private var napRampTrigger: CompletableDeferred<Unit>? = null
 
     fun start() {
         Log.i(TAG, "Initializing AppSessionCoordinator and registering haptics contract")
@@ -194,6 +213,7 @@ class AppSessionCoordinator(
                                 WakeSyncForegroundService.ACTION_START_NAP
                             )
                             restEstimatorEngine.start(scope)
+                            if (state.isSimulated) startSimulatedNapBaseline()
                             napManager.startSession(state.napState.destination)
                         }
                     }
@@ -224,6 +244,7 @@ class AppSessionCoordinator(
                             currentActiveType = SessionType.NONE
                             napManager.stopSession()
                             transitManager.stopSession()
+                            napRampTrigger = null
                             mockSensorEngine.stopSimulation()
                             restEstimatorEngine.stop()
                         }
@@ -234,19 +255,41 @@ class AppSessionCoordinator(
     }
 
     /**
-     * Triggers deterministic [Simulate Nap] synthetic sensor protocol.
+     * F26: with Simulation Mode on, the mock holds HR at [MockSensorEngine.NAP_START_HR] (and
+     * motion at rest) from the moment the nap starts, so the 20 s calibration always sees
+     * simulated readings regardless of when ⚡ is tapped. ⚡ only releases the descent.
+     */
+    private fun startSimulatedNapBaseline() {
+        val trigger = CompletableDeferred<Unit>()
+        napRampTrigger = trigger
+        Log.i(TAG, "Simulation Mode on: holding simulated baseline until ⚡ releases the descent")
+        mockSensorEngine.startNapSimulation(
+            scope,
+            durationSeconds = SIMULATED_NAP_RAMP_SECONDS,
+            baseHr = MockSensorEngine.NAP_START_HR,
+            awaitRampStart = { awaitNapRampGate(trigger, sessionManager.state.map { it.napState.phase }) }
+        )
+    }
+
+    /**
+     * ⚡ "start descent" (F26). If the simulated baseline is already running (Simulation Mode was
+     * on when the nap started), only releases the HR descent. Otherwise falls back to starting
+     * the whole simulation, gated on calibration having closed (F18).
      */
     override fun startSimulateNap() {
         Log.i(TAG, "Simulate Nap triggered: activating MockSensorEngine")
         sessionManager.setSimulationMode(true)
-        // 10 s ramp so DEEP_REST is reachable within the 30 s acceptance window (Section 9).
-        // The ramp itself only starts once NapManager's calibration window has closed (or
-        // immediately, if it already had) — otherwise a 10 s ramp finishes inside the 20 s
-        // calibration window and drags the calibrated base HR down with it (F18/B2a).
+        val trigger = napRampTrigger
+        if (trigger != null) {
+            trigger.complete(Unit)
+            return
+        }
+        // 10 s ramp so DEEP_REST is reachable within the 30 s acceptance window (Section 9); the
+        // ramp only starts once calibration has closed (F18/B2a).
         mockSensorEngine.startNapSimulation(
             scope,
-            durationSeconds = 10,
-            baseHr = 75,
+            durationSeconds = SIMULATED_NAP_RAMP_SECONDS,
+            baseHr = MockSensorEngine.NAP_START_HR,
             awaitRampStart = { sessionManager.state.first { it.napState.phase != NapPhase.CALIBRATING } }
         )
     }

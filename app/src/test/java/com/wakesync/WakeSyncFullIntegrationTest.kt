@@ -15,7 +15,9 @@ import com.wakesync.core.session.SessionManager
 import com.wakesync.sensors.mock.MockSensorEngine
 import com.wakesync.sleep.NapManager
 import com.wakesync.transit.TransitManager
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -193,6 +195,70 @@ class WakeSyncFullIntegrationTest {
 
         trackingListener.cancel()
     }
+
+    /**
+     * F26: with Simulation Mode on, the simulated baseline runs from session start and ⚡ only
+     * releases the descent, so DEEP_REST is reached whether ⚡ is tapped before or after the
+     * 20 s calibration — even with a stale deep-rest HR replayed from a previous simulation.
+     */
+    private fun runSimulatedNapWithTapAt(tapAtMs: Long, seedStaleHr: Boolean) = testScope.runTest {
+        if (seedStaleHr) {
+            mockSensorEngine.emitDirect(hr = MockSensorEngine.NAP_TARGET_HR)
+        }
+        val restEngine = RestEstimatorEngine(
+            sensorSource = mockSensorEngine,
+            dispatcher = testDispatcher,
+            timeProvider = { testScope.testScheduler.currentTime }
+        )
+        val napManager = NapManager(
+            sessionManager = sessionManager,
+            restEvaluationFlow = restEngine.evaluationResult,
+            heartRateFlow = mockSensorEngine.getHeartRate(),
+            alertController = testAlertController,
+            scope = testScope,
+            onBaseHeartRateCalibrated = restEngine::setBaseHeartRate
+        )
+
+        // Same order as AppSessionCoordinator: engine, simulated baseline, then the nap
+        val trigger = CompletableDeferred<Unit>()
+        restEngine.start(testScope)
+        mockSensorEngine.startNapSimulation(
+            testScope,
+            durationSeconds = 10,
+            baseHr = MockSensorEngine.NAP_START_HR,
+            awaitRampStart = {
+                AppSessionCoordinator.awaitNapRampGate(trigger, sessionManager.state.map { it.napState.phase })
+            }
+        )
+        napManager.startSession()
+
+        advanceTimeBy(tapAtMs)
+        runCurrent()
+        trigger.complete(Unit) // ⚡
+        advanceTimeBy(maxOf(0L, 21_000L - tapAtMs) + 60_000L)
+        runCurrent()
+
+        val result = restEngine.evaluationResult.value
+        assertTrue("Score must be >= 0.60: actual=${result.score}", result.score >= 0.60f)
+        assertEquals(RestState.DEEP_REST, result.state)
+        assertEquals(NapPhase.REST_CONFIRMED, sessionManager.state.value.napState.phase)
+
+        napManager.stopSession()
+        mockSensorEngine.stopSimulation()
+        restEngine.stop()
+    }
+
+    @Test
+    fun `F26 - simulated nap reaches DEEP_REST when ⚡ is tapped before calibration ends`() =
+        runSimulatedNapWithTapAt(tapAtMs = 5_000L, seedStaleHr = false)
+
+    @Test
+    fun `F26 - simulated nap reaches DEEP_REST when ⚡ is tapped after calibration with a stale replayed HR`() =
+        runSimulatedNapWithTapAt(tapAtMs = 30_000L, seedStaleHr = true)
+
+    @Test
+    fun `F26 - first simulated nap reaches DEEP_REST when ⚡ is tapped after calibration`() =
+        runSimulatedNapWithTapAt(tapAtMs = 30_000L, seedStaleHr = false)
 
     /**
      * Paso 3: Simular Ruta hacia "Campus UCC" con usuario despierto:

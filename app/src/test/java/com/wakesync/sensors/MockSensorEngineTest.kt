@@ -10,7 +10,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.atan2
@@ -156,6 +158,51 @@ class MockSensorEngineTest {
             assertEquals(400.0, targetDistance, 5.0)
         } finally {
             // Stop background simulation to prevent UncompletedCoroutinesError
+            mockSensorEngine.stopSimulation()
+        }
+    }
+
+
+    @Test
+    fun `stopSimulation clears the replay cache so no stale HR SVM or location is replayed (F26)`() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val mockSensorEngine = MockSensorEngine(dispatcher = testDispatcher)
+        mockSensorEngine.emitDirect(
+            hr = MockSensorEngine.NAP_TARGET_HR,
+            svm = MockSensorEngine.NAP_TARGET_SVM,
+            location = GeoPoint(6.2518, -75.5684, "Stale")
+        )
+
+        mockSensorEngine.stopSimulation()
+
+        assertNull(withTimeoutOrNull(1_000L) { mockSensorEngine.getHeartRate().first() })
+        assertNull(withTimeoutOrNull(1_000L) { mockSensorEngine.getMotionSvm().first() })
+        assertNull(withTimeoutOrNull(1_000L) { mockSensorEngine.getLocation().first() })
+    }
+
+    @Test
+    fun `a new nap simulation never replays the previous target HR (F26)`() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val mockSensorEngine = MockSensorEngine(dispatcher = testDispatcher)
+
+        try {
+            // Previous simulation ends at the deep-rest target HR
+            mockSensorEngine.startNapSimulation(this, durationSeconds = 10, baseHr = 75)
+            testScheduler.advanceTimeBy(15_000L)
+            testScheduler.runCurrent()
+            assertEquals(MockSensorEngine.NAP_TARGET_HR, mockSensorEngine.getHeartRate().first())
+
+            // Next session: gate closed, the first value observed must be the new baseline
+            val closedGate = CompletableDeferred<Unit>()
+            mockSensorEngine.startNapSimulation(
+                this,
+                durationSeconds = 10,
+                baseHr = MockSensorEngine.NAP_START_HR,
+                awaitRampStart = { closedGate.await() }
+            )
+            testScheduler.runCurrent()
+            assertEquals(MockSensorEngine.NAP_START_HR, mockSensorEngine.getHeartRate().first())
+        } finally {
             mockSensorEngine.stopSimulation()
         }
     }

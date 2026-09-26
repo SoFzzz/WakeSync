@@ -4,7 +4,15 @@ import com.wakesync.ai.RestEvaluationResult
 import com.wakesync.core.model.NapPhase
 import com.wakesync.core.model.RestState
 import com.wakesync.core.model.SessionType
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -12,6 +20,7 @@ import org.junit.Test
  * whether a raw `RestEvaluationResult.isCalibrating` signal is actually shown as
  * `RestState.CALIBRATING`, gated on the caller's own session phase.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class AppSessionCoordinatorTest {
 
     private fun invalidCalibratingResult() = RestEvaluationResult(
@@ -99,5 +108,58 @@ class AppSessionCoordinatorTest {
         )
 
         assertEquals(RestState.DEEP_REST, restState)
+    }
+
+    // F26: ⚡ ("start descent") gate — released only by ⚡ AND the end of calibration, any order.
+
+    @Test
+    fun `ramp gate stays closed when ⚡ is tapped but the nap is still CALIBRATING`() = runTest {
+        val trigger = CompletableDeferred<Unit>()
+        val phase = MutableStateFlow(NapPhase.CALIBRATING)
+        val gate = async { AppSessionCoordinator.awaitNapRampGate(trigger, phase) }
+
+        trigger.complete(Unit)
+        runCurrent()
+
+        assertFalse(gate.isCompleted)
+        gate.cancel()
+    }
+
+    @Test
+    fun `ramp gate stays closed in MONITORING until ⚡ is tapped`() = runTest {
+        val trigger = CompletableDeferred<Unit>()
+        val phase = MutableStateFlow(NapPhase.MONITORING)
+        val gate = async { AppSessionCoordinator.awaitNapRampGate(trigger, phase) }
+        runCurrent()
+
+        assertFalse(gate.isCompleted)
+        gate.cancel()
+    }
+
+    @Test
+    fun `ramp gate opens with ⚡ before calibration ends`() = runTest {
+        val trigger = CompletableDeferred<Unit>()
+        val phase = MutableStateFlow(NapPhase.CALIBRATING)
+        val gate = async { AppSessionCoordinator.awaitNapRampGate(trigger, phase) }
+
+        trigger.complete(Unit)
+        runCurrent()
+        phase.value = NapPhase.MONITORING
+        runCurrent()
+
+        assertTrue(gate.isCompleted)
+    }
+
+    @Test
+    fun `ramp gate opens with ⚡ after calibration ended`() = runTest {
+        val trigger = CompletableDeferred<Unit>()
+        val phase = MutableStateFlow(NapPhase.MONITORING)
+        val gate = async { AppSessionCoordinator.awaitNapRampGate(trigger, phase) }
+        runCurrent()
+
+        trigger.complete(Unit)
+        runCurrent()
+
+        assertTrue(gate.isCompleted)
     }
 }
