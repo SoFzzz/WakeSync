@@ -1,10 +1,18 @@
 package com.wakesync.ui.navigation
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -15,8 +23,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.wear.compose.material3.Button
+import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.Text
 import com.wakesync.R
 import com.wakesync.core.data.SessionHistoryRepository
 import com.wakesync.core.insights.InsightProvider
@@ -31,11 +44,12 @@ import com.wakesync.core.model.WakeSyncState
 import com.wakesync.core.places.DestinationPickerState
 import com.wakesync.core.places.DestinationSearchProvider
 import com.wakesync.core.session.SessionManager
+import com.wakesync.ui.ambient.LocalAmbientMode
 import com.wakesync.ui.components.ActiveAlertOverlay
 import com.wakesync.ui.components.CircularProgressArc
+import com.wakesync.ui.components.CompactNotice
 import com.wakesync.ui.components.ConflictDialog
 import com.wakesync.ui.components.DismissibleScreen
-import com.wakesync.ui.components.PickerFallbackBanner
 import com.wakesync.ui.format.UiFormatters
 import com.wakesync.ui.screens.ConfirmDestinationScreen
 import com.wakesync.ui.screens.DestinationMapScreen
@@ -48,11 +62,94 @@ import com.wakesync.ui.screens.SessionSummaryScreen
 import com.wakesync.ui.screens.SettingsScreen
 import com.wakesync.ui.screens.TransitScreen
 import com.wakesync.ui.theme.WakeSyncColors
+import com.wakesync.ui.theme.WakeSyncSpacing
+import com.wakesync.ui.theme.WakeSyncTextStyles
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 /** Which step of the Buscar/Mapa Destino flow the user was on before an Offline/Error fallback. */
 private enum class PickerStep { SEARCH, MAP }
+
+/**
+ * Offline/Error fallback for the Buscar/Mapa Destino flow (RF-PLC-05). Replaces the old
+ * `PickerFallbackBanner`'s ad-hoc colored `Text` with the shared [CompactNotice] component
+ * (`wear-design-system` SKILL.md components 4.7/4.11), and separates the two conditions that
+ * banner used to share one orange tone for: Offline uses `SlateMist` + `ic_wifi_off` (4.11),
+ * Error uses `WarningOchre` + `ic_warning` (4.7). `[Reintentar]`/`[Cancelar]` reuse the same
+ * bordered-text button pattern already established by `InsightCard`'s `[Reintentar]` action,
+ * instead of the loose `fontSize`/`CircleShape` combination the old banner used.
+ */
+@Composable
+private fun DestinationPickerFallback(
+    isOffline: Boolean,
+    message: String,
+    stepTitle: String,
+    onRetry: () -> Unit,
+    onExit: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isAmbient = LocalAmbientMode.current
+    val accentColor = if (isOffline) WakeSyncColors.SlateMist else WakeSyncColors.WarningOchre
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(WakeSyncColors.PureBlack),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = WakeSyncSpacing.xxl)
+        ) {
+            CompactNotice(
+                icon = painterResource(if (isOffline) R.drawable.ic_wifi_off else R.drawable.ic_warning),
+                text = stepTitle,
+                accentColor = accentColor
+            )
+            Spacer(modifier = Modifier.height(WakeSyncSpacing.sm))
+            Text(
+                text = message,
+                style = WakeSyncTextStyles.Body,
+                color = WakeSyncColors.CreamSoft,
+                textAlign = TextAlign.Center,
+                maxLines = 3
+            )
+
+            if (!isAmbient) {
+                Spacer(modifier = Modifier.height(WakeSyncSpacing.md))
+                Row(horizontalArrangement = Arrangement.spacedBy(WakeSyncSpacing.sm)) {
+                    Button(
+                        onClick = onRetry,
+                        modifier = Modifier.sizeIn(
+                            minWidth = WakeSyncSpacing.minTouchTarget,
+                            minHeight = WakeSyncSpacing.minTouchTarget
+                        ),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = WakeSyncColors.BlueDeep,
+                            contentColor = WakeSyncColors.CreamSoft
+                        ),
+                        border = BorderStroke(WakeSyncSpacing.borderHairline, accentColor)
+                    ) {
+                        Text(text = stringResource(R.string.btn_retry), style = WakeSyncTextStyles.Label)
+                    }
+                    Button(
+                        onClick = onExit,
+                        modifier = Modifier.sizeIn(
+                            minWidth = WakeSyncSpacing.minTouchTarget,
+                            minHeight = WakeSyncSpacing.minTouchTarget
+                        ),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = WakeSyncColors.NavyDeep,
+                            contentColor = WakeSyncColors.CreamSoft
+                        )
+                    ) {
+                        Text(text = stringResource(R.string.btn_cancel), style = WakeSyncTextStyles.Label)
+                    }
+                }
+            }
+        }
+    }
+}
 
 /**
  * Root navigation host and state orchestrator for WakeSync on Wear OS.
@@ -232,7 +329,8 @@ fun WakeSyncNavHost(
                         }
 
                         DestinationPickerState.Offline -> {
-                            PickerFallbackBanner(
+                            DestinationPickerFallback(
+                                isOffline = true,
                                 message = stringResource(R.string.dest_offline_msg),
                                 stepTitle = stepTitle,
                                 onRetry = { pickerContract?.retry() },
@@ -241,7 +339,8 @@ fun WakeSyncNavHost(
                         }
 
                         is DestinationPickerState.Error -> {
-                            PickerFallbackBanner(
+                            DestinationPickerFallback(
+                                isOffline = false,
                                 message = pickerStateValue.message,
                                 stepTitle = stepTitle,
                                 onRetry = { pickerContract?.retry() },

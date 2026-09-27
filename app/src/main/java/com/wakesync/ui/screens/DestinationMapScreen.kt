@@ -25,9 +25,7 @@ import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.Text
@@ -186,7 +184,7 @@ fun DestinationMapScreen(
                     contentColor = WakeSyncColors.SageTeal
                 )
             ) {
-                Text(text = stringResource(R.string.btn_pin_destination), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                Text(text = stringResource(R.string.btn_pin_destination), style = WakeSyncTextStyles.Label)
             }
         }
     }
