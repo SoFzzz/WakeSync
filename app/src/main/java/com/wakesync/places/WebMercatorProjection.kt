@@ -23,7 +23,8 @@ object WebMercatorProjection {
     const val SCREEN_SIZE_PX = 454.0
 
     /**
-     * Map scale factor (scale=2 in Maps Static API request).
+     * Map scale factor (@2x in the static map request). The backend compensates Mapbox's
+     * 512 px tiles by requesting zoom - 1, so [TILE_SIZE] = 256 stays valid.
      * 1 logical pixel = 2 physical screen pixels.
      */
     const val MAP_SCALE = 2.0
