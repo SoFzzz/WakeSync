@@ -292,10 +292,36 @@ class SessionManager(
         alertController?.cancelAlert()
     }
 
+    private var simulationController: SimulationControllerContract? = null
+
+    /**
+     * Registers the simulation controller implementation (RF-SENS-06).
+     */
+    fun registerSimulationController(controller: SimulationControllerContract) {
+        this.simulationController = controller
+        Log.i(TAG, "SimulationController registered successfully")
+    }
+
     /**
      * Sets simulation mode flag.
      */
     fun setSimulationMode(isSimulated: Boolean) {
         _state.update { it.copy(isSimulated = isSimulated) }
+    }
+
+    /**
+     * Triggers simulated nap execution via registered controller.
+     */
+    fun startSimulateNap() {
+        setSimulationMode(true)
+        simulationController?.startSimulateNap()
+    }
+
+    /**
+     * Triggers simulated route execution via registered controller.
+     */
+    fun startSimulateRoute(destination: GeoPoint? = null) {
+        setSimulationMode(true)
+        simulationController?.startSimulateRoute(destination)
     }
 }

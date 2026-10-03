@@ -106,10 +106,12 @@ class MockSensorEngine(
      * Starts deterministic [Simulate Route] mode:
      * - Interpolates GPS distance from 2000m to 400m from destination over 60 seconds.
      * - Emits GPS updates at 1 Hz, crossing the dynamic alert radius (R_alert).
+     *
+     * @param destination The destination confirmed by the user (RF-SIM-02); there is no default.
      */
     fun startRouteSimulation(
         scope: CoroutineScope,
-        destination: GeoPoint = GeoPoint(6.2518, -75.5684, "Campus UCC"),
+        destination: GeoPoint,
         durationSeconds: Int = ROUTE_DURATION_SECONDS
     ) {
         stopSimulation()
