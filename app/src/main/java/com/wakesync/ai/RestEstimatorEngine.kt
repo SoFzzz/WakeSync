@@ -34,7 +34,8 @@ import kotlin.math.min
  */
 class RestEstimatorEngine(
     private val sensorSource: SensorSource,
-    private val dispatcher: CoroutineDispatcher = Dispatchers.Default
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val timeProvider: () -> Long = { System.currentTimeMillis() }
 ) {
 
     companion object {
@@ -103,7 +104,7 @@ class RestEstimatorEngine(
             // Collect Heart Rate stream
             val hrJob = launch {
                 sensorSource.getHeartRate().collect { bpm ->
-                    val now = System.currentTimeMillis()
+                    val now = timeProvider()
                     if (bpm in HR_MIN_VALID..HR_MAX_VALID) {
                         synchronized(bufferLock) {
                             hrSamples.addLast(TimedSample(bpm, now))
@@ -117,7 +118,7 @@ class RestEstimatorEngine(
             // Collect Accelerometer SVM stream
             val svmJob = launch {
                 sensorSource.getMotionSvm().collect { rawSvm ->
-                    val now = System.currentTimeMillis()
+                    val now = timeProvider()
                     val validSvm = max(0.0f, rawSvm) // Enforce non-negative motion
                     synchronized(bufferLock) {
                         svmSamples.addLast(TimedSample(validSvm, now))
@@ -157,7 +158,7 @@ class RestEstimatorEngine(
      * Completes in < 5 ms.
      */
     suspend fun evaluateCurrentCycle(): RestEvaluationResult = withContext(dispatcher) {
-        val now = System.currentTimeMillis()
+        val now = timeProvider()
         val currentBaseHr = baseHeartRate
 
         val (currentHr, meanSvm, isFresh) = synchronized(bufferLock) {
@@ -216,7 +217,7 @@ class RestEstimatorEngine(
         currentHr: Int,
         meanSvm: Float,
         previousDeepRestCount: Int,
-        now: Long = System.currentTimeMillis()
+        now: Long = timeProvider()
     ): RestEvaluationResult {
         // Enforce physiological bounds
         if (currentHr !in HR_MIN_VALID..HR_MAX_VALID || baseHr <= 0) {
