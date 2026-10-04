@@ -55,7 +55,7 @@ fun SessionDetailScreen(
 ) {
     val isAmbient = LocalAmbientMode.current
     val scrollState = rememberScalingLazyListState()
-    val screenBackground = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.NavyDeep
+    val screenBackground = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueBackground
 
     BackHandler(onBack = onBack)
 
@@ -84,7 +84,7 @@ fun SessionDetailScreen(
                 Text(
                     text = "$typeLabel · $outcomeLabel",
                     style = WakeSyncTextStyles.Label,
-                    color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.SageTeal,
+                    color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.RoseGold,
                     textAlign = TextAlign.Center
                 )
             }

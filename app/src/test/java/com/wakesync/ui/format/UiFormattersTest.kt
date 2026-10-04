@@ -1,11 +1,14 @@
 package com.wakesync.ui.format
 
+import com.wakesync.core.insights.InsightFailureReason
+import com.wakesync.core.insights.InsightState
 import com.wakesync.core.model.SessionOutcome
 import com.wakesync.core.model.SessionRecord
 import com.wakesync.core.model.SessionType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.ZoneId
 
 class UiFormattersTest {
 
@@ -127,5 +130,79 @@ class UiFormattersTest {
         val result = UiFormatters.resolveJustEndedSessionRecord(listOf(first), preEndTopRecordId = UiFormatters.NO_PRIOR_RECORD_ID)
 
         assertEquals(first.id, result?.id)
+    }
+
+    private fun record(id: String, start: Long, insight: String? = null) = SessionRecord(
+        id = id,
+        sessionType = SessionType.NAP,
+        startTimestamp = start,
+        durationSeconds = 60,
+        restLatencySeconds = null,
+        outcome = SessionOutcome.COMPLETED,
+        insightText = insight
+    )
+
+    @Test
+    fun `formatHistoryDateTime formats day month and 24h time in the given zone`() {
+        // 2026-09-26T21:57:00Z
+        assertEquals("26/09 · 21:57", UiFormatters.formatHistoryDateTime(1790459820000L, ZoneId.of("UTC")))
+        assertEquals("26/09 · 16:57", UiFormatters.formatHistoryDateTime(1790459820000L, ZoneId.of("America/Bogota")))
+    }
+
+    @Test
+    fun `formatHistoryDate and formatHistoryTime split the row date and time`() {
+        // 2026-09-26T21:57:00Z
+        assertEquals("26/09", UiFormatters.formatHistoryDate(1790459820000L, ZoneId.of("UTC")))
+        assertEquals("21:57", UiFormatters.formatHistoryTime(1790459820000L, ZoneId.of("UTC")))
+    }
+
+    @Test
+    fun `historyNewestFirst orders by start timestamp regardless of list order`() {
+        val sorted = UiFormatters.historyNewestFirst(listOf(record("a", 100L), record("c", 300L), record("b", 200L)))
+
+        assertEquals(listOf("c", "b", "a"), sorted.map { it.id })
+    }
+
+    @Test
+    fun `resolveDetailInsightState shows persisted insight without any request`() {
+        val saved = record("a", 1L, insight = "Texto guardado.")
+
+        val result = UiFormatters.resolveDetailInsightState(saved, requestedForId = null, InsightState.Idle)
+
+        assertEquals(InsightState.Ready("Texto guardado."), result)
+    }
+
+    @Test
+    fun `resolveDetailInsightState returns null when this record was never requested`() {
+        val result = UiFormatters.resolveDetailInsightState(
+            record("a", 1L),
+            requestedForId = "other",
+            InsightState.Unavailable(InsightFailureReason.FAILED)
+        )
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `resolveDetailInsightState ignores a contract Ready that is not persisted in this record`() {
+        val lateReady = InsightState.Ready("De otro registro.")
+
+        val result = UiFormatters.resolveDetailInsightState(record("b", 1L), "b", lateReady)
+
+        assertEquals(InsightState.Loading, result)
+    }
+
+    @Test
+    fun `resolveDetailInsightState maps Idle to Loading once requested`() {
+        val result = UiFormatters.resolveDetailInsightState(record("a", 1L), "a", InsightState.Idle)
+
+        assertEquals(InsightState.Loading, result)
+    }
+
+    @Test
+    fun `resolveDetailInsightState passes Unavailable through with its reason`() {
+        val offline = InsightState.Unavailable(InsightFailureReason.OFFLINE)
+
+        assertEquals(offline, UiFormatters.resolveDetailInsightState(record("a", 1L), "a", offline))
     }
 }
