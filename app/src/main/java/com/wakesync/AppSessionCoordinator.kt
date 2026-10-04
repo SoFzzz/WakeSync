@@ -9,6 +9,7 @@ import com.wakesync.core.model.BiometricMetrics
 import com.wakesync.core.model.GeoPoint
 import com.wakesync.core.model.NapPhase
 import com.wakesync.core.model.RestState
+import com.wakesync.core.model.SessionOutcome
 import com.wakesync.core.model.SessionType
 import com.wakesync.core.model.TransitPhase
 import com.wakesync.core.service.WakeSyncForegroundService
@@ -148,9 +149,15 @@ class AppSessionCoordinator(
 
                     SessionType.TRANSIT -> {
                         if (currentActiveType != SessionType.TRANSIT) {
+                            val dest = state.transitState.destination
+                            if (dest == null) {
+                                // RF-TRAN-01: transit never starts without a user-confirmed destination
+                                Log.w(TAG, "Transit session requested without a confirmed destination; cancelling")
+                                sessionManager.endSession(SessionOutcome.CANCELLED)
+                                return@collectLatest
+                            }
                             currentActiveType = SessionType.TRANSIT
-                            val dest = state.transitState.destination ?: GeoPoint(6.2518, -75.5684, "Campus UCC")
-                            Log.i(TAG, "Starting Transit session lifecycle towards ${dest.name}")
+                            Log.i(TAG, "Starting Transit session lifecycle")
                             WakeSyncForegroundService.startService(
                                 context,
                                 WakeSyncForegroundService.ACTION_START_TRANSIT
@@ -189,8 +196,13 @@ class AppSessionCoordinator(
      * Triggers deterministic [Simulate Route] synthetic GPS protocol.
      */
     override fun startSimulateRoute(destination: GeoPoint?) {
-        val target = destination ?: sessionManager.state.value.transitState.destination ?: GeoPoint(6.2518, -75.5684, "Campus UCC")
-        Log.i(TAG, "Simulate Route triggered: activating MockSensorEngine towards ${target.name}")
+        val target = destination ?: sessionManager.state.value.transitState.destination
+        if (target == null) {
+            // RF-SIM-02: the route simulation only approaches the destination the user chose
+            Log.w(TAG, "Simulate Route ignored: no confirmed destination")
+            return
+        }
+        Log.i(TAG, "Simulate Route triggered: activating MockSensorEngine")
         sessionManager.setSimulationMode(true)
         sensorRepository.setSimulated(true)
         mockSensorEngine.startRouteSimulation(scope, target, durationSeconds = 60)
