@@ -54,12 +54,10 @@ class MainActivity : ComponentActivity() {
                     historyRepository = historyRepository,
                     onRequestPermissions = { launchPermissions() },
                     onSimulateNap = {
-                        // Point of coordination with platform-core-engineer & sensor-ai-engineer
-                        sessionManager.setSimulationMode(true)
+                        sessionManager.startSimulateNap()
                     },
                     onSimulateRoute = {
-                        // Point of coordination with platform-core-engineer & sensor-ai-engineer
-                        sessionManager.setSimulationMode(true)
+                        sessionManager.startSimulateRoute(state.transitState.destination)
                     }
                 )
             }

@@ -3,6 +3,7 @@ package com.wakesync.ai
 import com.wakesync.core.model.RestState
 import com.wakesync.sensors.mock.MockSensorEngine
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -118,6 +119,27 @@ class RestEstimatorEngineTest {
     }
 
     @Test
+    fun `steady-state mock nap score clears DEEP_REST threshold for the realistic calibration range`() {
+        // F18: a calibration that races MockSensorEngine's activation can land below the
+        // NAP_START_HR of 75 (seen as low as 71 BPM). NAP_TARGET_HR (52) and NAP_TARGET_SVM must
+        // keep score_reposo >= 0.60 for any base HR in that realistic range, or DEEP_REST becomes
+        // permanently unreachable once HR/SVM settle at their steady-state floor. The exact floor is
+        // 67 BPM (score 0.6039); 66 falls just short (0.5981) and is deliberately excluded here.
+        listOf(67, 71, 75).forEach { baseHr ->
+            val result = engine.calculateScoreAndState(
+                baseHr = baseHr,
+                currentHr = MockSensorEngine.NAP_TARGET_HR,
+                meanSvm = MockSensorEngine.NAP_TARGET_SVM,
+                previousDeepRestCount = 0
+            )
+            assertTrue(
+                "Steady-state score for baseHr=$baseHr must be >= 0.60: actual=${result.score}",
+                result.score >= 0.60f
+            )
+        }
+    }
+
+    @Test
     fun `physiological bounds enforce invalid data when HR is outside 35 to 220 BPM`() {
         val lowHr = engine.calculateScoreAndState(
             baseHr = 70,
@@ -146,6 +168,87 @@ class RestEstimatorEngineTest {
         )
         assertEquals(1.0f, result.quietude, 0.0001f) // 1 - min(1, 0.0 / 2.5) = 1.0
         assertTrue(result.isDataValid)
+    }
+
+    @Test
+    fun `data is valid only after HR_base is set and stop clears it for the next session`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val timedEngine = RestEstimatorEngine(mockSensorEngine, dispatcher) { testScheduler.currentTime }
+
+        timedEngine.start(backgroundScope)
+        mockSensorEngine.emitDirect(hr = 60, svm = 0.0f)
+        assertFalse("Without HR_base the cycle must be invalid", timedEngine.evaluateCurrentCycle().isDataValid)
+
+        timedEngine.setBaseHeartRate(75)
+        assertTrue("With HR_base and fresh HR the cycle must be valid", timedEngine.evaluateCurrentCycle().isDataValid)
+
+        timedEngine.stop()
+        assertFalse("stop() must reset the published result", timedEngine.evaluationResult.value.isDataValid)
+        assertEquals(0, timedEngine.evaluationResult.value.consecutiveDeepRestCount)
+
+        timedEngine.start(backgroundScope)
+        mockSensorEngine.emitDirect(hr = 60, svm = 0.0f)
+        assertFalse("A new session must not reuse the previous HR_base", timedEngine.evaluateCurrentCycle().isDataValid)
+        timedEngine.stop()
+    }
+
+    @Test
+    fun `F24 - fresh HR without HR_base is reported as calibrating, not sensor unavailable`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val timedEngine = RestEstimatorEngine(mockSensorEngine, dispatcher) { testScheduler.currentTime }
+
+        timedEngine.start(backgroundScope)
+        mockSensorEngine.emitDirect(hr = 72, svm = 0.5f)
+        val result = timedEngine.evaluateCurrentCycle()
+
+        assertFalse("Still invalid: no HR_base yet", result.isDataValid)
+        assertTrue("Fresh, in-range HR with no HR_base must be flagged as calibrating", result.isCalibrating)
+
+        timedEngine.stop()
+    }
+
+    @Test
+    fun `F24 - stale or missing HR is sensor unavailable, not calibrating`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val timedEngine = RestEstimatorEngine(mockSensorEngine, dispatcher) { testScheduler.currentTime }
+
+        timedEngine.start(backgroundScope)
+        // No HR ever emitted: hrSamples stays empty, so isFresh is false regardless of HR_base.
+        timedEngine.setBaseHeartRate(75)
+        val result = timedEngine.evaluateCurrentCycle()
+
+        assertFalse("No HR at all must still be invalid", result.isDataValid)
+        assertFalse("No fresh HR at all is a real sensor problem, not calibration", result.isCalibrating)
+
+        timedEngine.stop()
+    }
+
+    @Test
+    fun `F24 - isCalibrating is always false once data is valid`() {
+        val result = engine.calculateScoreAndState(
+            baseHr = 75,
+            currentHr = 65,
+            meanSvm = 1.0f,
+            previousDeepRestCount = 0
+        )
+
+        assertTrue(result.isDataValid)
+        assertFalse(result.isCalibrating)
+    }
+
+    @Test
+    fun `only the placeholder before the first evaluation is flagged isInitial`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val timedEngine = RestEstimatorEngine(mockSensorEngine, dispatcher) { testScheduler.currentTime }
+
+        assertTrue("A fresh engine publishes the initial placeholder", timedEngine.evaluationResult.value.isInitial)
+
+        timedEngine.start(backgroundScope)
+        mockSensorEngine.emitDirect(hr = 72, svm = 0.5f)
+        assertFalse("A real evaluation is never initial", timedEngine.evaluateCurrentCycle().isInitial)
+
+        timedEngine.stop()
+        assertTrue("stop() republishes the initial placeholder", timedEngine.evaluationResult.value.isInitial)
     }
 
     @Test
