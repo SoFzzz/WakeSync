@@ -3,7 +3,9 @@ package com.wakesync.insights
 import android.util.Log
 import com.wakesync.core.data.SessionHistoryRepository
 import com.wakesync.core.insights.InsightContract
+import com.wakesync.core.insights.InsightFailureReason
 import com.wakesync.core.insights.InsightState
+import com.wakesync.core.model.SessionOutcome
 import com.wakesync.core.model.SessionRecord
 import com.wakesync.network.ApiResult
 import com.wakesync.network.BackendClient
@@ -50,6 +52,26 @@ class InsightRepository(
     companion object {
         private const val TAG = "InsightRepository"
         const val INSIGHTS_MAX_CHARS = 140
+
+        /**
+         * Maps a local [SessionOutcome] to the value accepted by `POST /v1/insights`. The backend
+         * only accepts COMPLETED, DISMISSED, TIMED_OUT and CANCELLED, so an arrival-triggered end
+         * is reported as COMPLETED (the user reached the destination) instead of being rejected
+         * with HTTP 400.
+         */
+        internal fun toBackendOutcome(outcome: SessionOutcome): String = when (outcome) {
+            SessionOutcome.INTERRUPTED_BY_ARRIVAL -> SessionOutcome.COMPLETED.name
+            else -> outcome.name
+        }
+
+        /**
+         * Maps a failed [ApiResult] to the reason exposed to the UI: only a request that was never
+         * sent for lack of network counts as [InsightFailureReason.OFFLINE].
+         */
+        internal fun failureReasonFor(result: ApiResult<*>): InsightFailureReason = when (result) {
+            is ApiResult.NetworkUnavailable -> InsightFailureReason.OFFLINE
+            else -> InsightFailureReason.FAILED
+        }
     }
 
     private val _state = MutableStateFlow<InsightState>(InsightState.Idle)
@@ -69,7 +91,7 @@ class InsightRepository(
 
                 if (record == null) {
                     Log.w(TAG, "No session record found matching timestamp $sessionStartTimestamp")
-                    _state.value = InsightState.Unavailable
+                    _state.value = InsightState.Unavailable(InsightFailureReason.FAILED)
                     return@launch
                 }
 
@@ -84,7 +106,7 @@ class InsightRepository(
                     sessionType = record.sessionType.name,
                     durationSeconds = record.durationSeconds,
                     restLatencySeconds = record.restLatencySeconds,
-                    outcome = record.outcome.name
+                    outcome = toBackendOutcome(record.outcome)
                 )
 
                 when (result) {
@@ -103,12 +125,12 @@ class InsightRepository(
                     }
                     is ApiResult.NetworkUnavailable, is ApiResult.Timeout, is ApiResult.HttpError, is ApiResult.ParseError -> {
                         Log.w(TAG, "Failed to retrieve insight: $result. Degrading to Unavailable (RF-INS-02)")
-                        _state.value = InsightState.Unavailable
+                        _state.value = InsightState.Unavailable(failureReasonFor(result))
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Unexpected error requesting insight: ${e.message}", e)
-                _state.value = InsightState.Unavailable
+                _state.value = InsightState.Unavailable(InsightFailureReason.FAILED)
             }
         }
     }
