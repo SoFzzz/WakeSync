@@ -46,7 +46,7 @@ fun PrimaryBottomButton(
             containerColor = WakeSyncColors.RoseGold,
             contentColor = WakeSyncColors.NavyDeep
         ),
-        contentPadding = PaddingValues(horizontal = WakeSyncSpacing.lg, vertical = WakeSyncSpacing.sm)
+        contentPadding = PaddingValues(horizontal = WakeSyncSpacing.sm, vertical = WakeSyncSpacing.sm)
     ) {
         if (icon != null) {
             Icon(
