@@ -1,6 +1,10 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 android {
@@ -13,10 +17,43 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
+
+        // Leídos de local.properties (no versionado en Git)
+        val localProperties = Properties().apply {
+            val localPropertiesFile = rootProject.file("local.properties")
+            if (localPropertiesFile.exists()) {
+                load(FileInputStream(localPropertiesFile))
+            }
+        }
+        val backendBaseUrl = localProperties.getProperty("wakesync.backendBaseUrl") ?: "https://wakesync-gateway.workers.dev"
+        val backendAppToken = localProperties.getProperty("wakesync.backendAppToken") ?: "dev-token"
+        buildConfigField("String", "BACKEND_BASE_URL", "\"$backendBaseUrl\"")
+        buildConfigField("String", "BACKEND_APP_TOKEN", "\"$backendAppToken\"")
+    }
+
+    // Release keystore lives outside the repo; secrets are read from local.properties.
+    signingConfigs {
+        create("release") {
+            val props = Properties().apply {
+                val file = rootProject.file("local.properties")
+                if (file.exists()) FileInputStream(file).use { load(it) }
+            }
+            storeFile = rootDir.parentFile.resolve("keys/wakesync-release.jks")
+            storePassword = props.getProperty("wakesync.storePassword")
+            keyAlias = props.getProperty("wakesync.keyAlias")
+            keyPassword = props.getProperty("wakesync.keyPassword")
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("release")
+        }
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
@@ -58,8 +95,20 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-service:2.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
 
+    // Cliente HTTP y JSON (com.wakesync.network) - Aprobado en CR-01
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+
+    // Entrada de texto por voz/teclado en Wear OS (RemoteInput)
+    implementation("androidx.wear:wear-input:1.1.0")
+
+    // Ambient / Always-On mode (AmbientLifecycleObserver) — F25. Already resolved transitively via
+    // horologist-compose-layout 0.6.9; declared explicitly at the same version.
+    implementation("androidx.wear:wear:1.3.0")
+
     // Pruebas unitarias
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
     testImplementation("org.json:json:20231013")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
