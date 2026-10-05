@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -31,7 +32,7 @@ import com.wakesync.ui.theme.WakeSyncTextStyles
 /**
  * Design system component 4.1 (`wear-design-system` SKILL.md): icon + title + one-line
  * subtitle action chip for compact lists (Inicio, Historial, Buscar Destino). Container
- * [WakeSyncColors.BlueDeep] (`surfaceContainer`), radius 16dp, compact height — replaces
+ * [WakeSyncColors.BlueCard] (`surfaceContainer`), radius 16dp, compact height — replaces
  * the ~110dp full-width cards previously used in HomeScreen.
  */
 @Composable
@@ -49,7 +50,7 @@ fun ActionChip(
         modifier = modifier.fillMaxWidth(),
         shape = WakeSyncShapes.small,
         colors = CardDefaults.cardColors(
-            containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueDeep,
+            containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueCard,
             contentColor = WakeSyncColors.CreamSoft
         ),
         border = if (isAmbient) CardDefaults.outlinedCardBorder() else null
@@ -87,31 +88,37 @@ fun ActionChip(
  * compact action (e.g. Ajustes in Inicio) never reads as an oversized primary button — this
  * is the direct fix for the previous 48dp fully-filled settings button with an off-center
  * glyph.
+ *
+ * [containerColor]/[iconTint] default to the secondary look (BlueCard + CreamSoft); a dialog's
+ * affirmative action (4.8, `check`) passes `primary`/`onPrimary` (RoseGold + NavyDeep, 6.91:1).
+ * Ambient mode always overrides both with the outline-only look.
  */
 @Composable
 fun SecondaryIconChip(
     icon: Painter,
     contentDescription: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    containerColor: Color = WakeSyncColors.BlueCard,
+    iconTint: Color = WakeSyncColors.CreamSoft
 ) {
     val isAmbient = LocalAmbientMode.current
     Box(
         modifier = modifier
-            .size(48.dp)
+            .size(WakeSyncSpacing.minTouchTarget)
             .clip(CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(WakeSyncSpacing.secondaryChipVisual)
                 .clip(CircleShape)
                 .then(
                     if (isAmbient) {
                         Modifier.background(WakeSyncColors.PureBlack)
                     } else {
-                        Modifier.background(WakeSyncColors.BlueDeep)
+                        Modifier.background(containerColor)
                     }
                 ),
             contentAlignment = Alignment.Center
@@ -119,8 +126,8 @@ fun SecondaryIconChip(
             Icon(
                 painter = icon,
                 contentDescription = contentDescription,
-                tint = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.CreamSoft,
-                modifier = Modifier.size(20.dp)
+                tint = if (isAmbient) WakeSyncColors.TanMuted else iconTint,
+                modifier = Modifier.size(WakeSyncSpacing.iconSmall)
             )
         }
     }
