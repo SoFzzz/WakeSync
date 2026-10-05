@@ -2,8 +2,10 @@ package com.wakesync.core
 
 import com.wakesync.core.alerts.AlertControllerContract
 import com.wakesync.core.model.AlertLevel
+import com.wakesync.core.model.GeoPoint
 import com.wakesync.core.model.NapPhase
 import com.wakesync.core.model.SessionOutcome
+import com.wakesync.core.model.SessionRecord
 import com.wakesync.core.model.SessionType
 import com.wakesync.core.model.TransitPhase
 import com.wakesync.core.session.SessionManager
@@ -43,6 +45,17 @@ class SessionManagerTest {
         assertEquals(SessionType.NAP, sessionManager.state.value.sessionType)
         assertEquals(NapPhase.CALIBRATING, sessionManager.state.value.napState.phase)
         assertNull(sessionManager.state.value.pendingConflict)
+    }
+
+    @Test
+    fun startSession_withDestination_updatesConfirmedDestinationInState() {
+        val destination = GeoPoint(6.2518, -75.5684, "Campus UCC")
+        val started = sessionManager.requestStartSession(SessionType.TRANSIT, destination)
+
+        assertTrue(started)
+        assertEquals(SessionType.TRANSIT, sessionManager.state.value.sessionType)
+        assertEquals(destination, sessionManager.state.value.confirmedDestination)
+        assertEquals("Campus UCC", sessionManager.state.value.confirmedDestination?.name)
     }
 
     @Test
@@ -86,6 +99,20 @@ class SessionManagerTest {
     }
 
     @Test
+    fun resolveConflict_whenAccepted_keepsRequestedDestination() {
+        val destination = GeoPoint(6.2440, -75.5810, "Chosen Destination")
+        sessionManager.requestStartSession(SessionType.NAP)
+        sessionManager.requestStartSession(SessionType.TRANSIT, destination)
+
+        assertEquals(destination, sessionManager.state.value.pendingConflict?.requestedDestination)
+
+        sessionManager.resolveConflict(proceedWithNew = true)
+
+        assertEquals(SessionType.TRANSIT, sessionManager.state.value.sessionType)
+        assertEquals(destination, sessionManager.state.value.transitState.destination)
+    }
+
+    @Test
     fun endSession_resetsActiveModeAndUpdatesPhase() {
         sessionManager.requestStartSession(SessionType.NAP)
         sessionManager.endSession(SessionOutcome.COMPLETED)
@@ -106,6 +133,54 @@ class SessionManagerTest {
         assertEquals(SessionType.NAP, sessionManager.state.value.sessionType)
         assertEquals("Phase must not be reset to CALIBRATING", NapPhase.MONITORING, sessionManager.state.value.napState.phase)
         assertEquals("Elapsed seconds must not be reset", 60, sessionManager.state.value.napState.elapsedSeconds)
+    }
+
+    @Test
+    fun endSession_withStaleExpectedTimestamp_leavesTheNewSessionUntouched() {
+        var wakeLockReleases = 0
+        val records = mutableListOf<SessionRecord>()
+        val manager = SessionManager(
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+            releaseWakeLock = { wakeLockReleases++ },
+            persistRecord = { records += it }
+        )
+        val destination = GeoPoint(6.2440, -75.5810, "Chosen Destination")
+        manager.requestStartSession(SessionType.NAP)
+        val napStart = manager.activeSessionStartTimestamp(SessionType.NAP)
+        manager.requestStartSession(SessionType.TRANSIT, destination)
+        manager.resolveConflict(proceedWithNew = true)
+        val transitStart = manager.activeSessionStartTimestamp(SessionType.TRANSIT)
+
+        // A late "end my nap" arriving after resolveConflict already started the Transit
+        manager.endSession(SessionOutcome.CANCELLED, expectedStartTimestamp = napStart)
+
+        assertEquals(SessionType.TRANSIT, manager.state.value.sessionType)
+        assertEquals(destination, manager.state.value.transitState.destination)
+        assertEquals(transitStart, manager.activeSessionStartTimestamp(SessionType.TRANSIT))
+        assertEquals("Only the nap's own end releases the wake lock", 1, wakeLockReleases)
+        assertEquals(listOf(SessionType.NAP), records.map { it.sessionType })
+    }
+
+    @Test
+    fun endSession_withMatchingExpectedTimestamp_endsTheSession() {
+        sessionManager.requestStartSession(SessionType.NAP)
+        val napStart = sessionManager.activeSessionStartTimestamp(SessionType.NAP)
+
+        sessionManager.endSession(SessionOutcome.CANCELLED, expectedStartTimestamp = napStart)
+
+        assertEquals(SessionType.NONE, sessionManager.state.value.sessionType)
+    }
+
+    @Test
+    fun activeSessionStartTimestamp_isNullForAnotherTypeAndStrictlyIncreasing() {
+        sessionManager.requestStartSession(SessionType.NAP)
+        val napStart = sessionManager.activeSessionStartTimestamp(SessionType.NAP)
+        assertNull(sessionManager.activeSessionStartTimestamp(SessionType.TRANSIT))
+
+        sessionManager.endSession(SessionOutcome.CANCELLED)
+        sessionManager.requestStartSession(SessionType.NAP)
+
+        assertTrue(sessionManager.activeSessionStartTimestamp(SessionType.NAP)!! > napStart!!)
     }
 
     private class TestAlertController : AlertControllerContract {
@@ -181,5 +256,61 @@ class SessionManagerTest {
         sessionManager.endSession(SessionOutcome.COMPLETED)
         assertTrue("Ending session must cancel active alerts", mockController.cancelCalled)
         assertEquals(AlertLevel.NONE, sessionManager.state.value.activeAlertLevel)
+    }
+
+    @Test
+    fun endSession_withStopActiveAlertFalse_doesNotOverwriteActiveAlertLevel() {
+        // Reproduces the arrival-alert race (F-alert-race): TransitManager.handleArrival()
+        // calls controller.triggerAlert(MODERATE) and then, in the very next statement,
+        // terminateSession(..., stopActiveAlert = false) — endSession must not race the
+        // collector in registerAlertController() and stomp the just-triggered level back to
+        // NONE, or ActiveAlertOverlay never gets a single composed frame to show it.
+        val mockController = TestAlertController()
+        sessionManager.registerAlertController(mockController)
+        sessionManager.requestStartSession(SessionType.TRANSIT)
+        // startSessionInternal() itself calls cancelAlert() as it starts (unrelated to this
+        // test) — reset here so the assertion below only reflects endSession's own behavior.
+        mockController.cancelCalled = false
+
+        mockController.triggerAlert(AlertLevel.MODERATE)
+        assertEquals(AlertLevel.MODERATE, sessionManager.state.value.activeAlertLevel)
+
+        sessionManager.endSession(SessionOutcome.COMPLETED, stopActiveAlert = false)
+
+        assertFalse("Controller's cancelAlert must NOT be invoked", mockController.cancelCalled)
+        assertEquals(
+            "activeAlertLevel must survive endSession so the overlay can still render it",
+            AlertLevel.MODERATE,
+            sessionManager.state.value.activeAlertLevel
+        )
+        assertEquals(SessionType.NONE, sessionManager.state.value.sessionType)
+
+        // The controller's own waveform-end reset (not endSession) is what clears it, and
+        // the existing collector must still propagate that afterwards.
+        mockController.triggerAlert(AlertLevel.NONE)
+        assertEquals(AlertLevel.NONE, sessionManager.state.value.activeAlertLevel)
+    }
+
+    @Test
+    fun acknowledgeSessionEnd_resetsTerminalPhasesToIdle() {
+        sessionManager.requestStartSession(SessionType.NAP)
+        sessionManager.endSession(SessionOutcome.CANCELLED)
+        assertEquals(NapPhase.CANCELLED, sessionManager.state.value.napState.phase)
+
+        sessionManager.acknowledgeSessionEnd()
+
+        assertEquals(NapPhase.IDLE, sessionManager.state.value.napState.phase)
+        assertEquals(TransitPhase.IDLE, sessionManager.state.value.transitState.phase)
+        assertEquals(SessionType.NONE, sessionManager.state.value.sessionType)
+    }
+
+    @Test
+    fun acknowledgeSessionEnd_isNoOpWhileSessionIsActive() {
+        sessionManager.requestStartSession(SessionType.NAP)
+
+        sessionManager.acknowledgeSessionEnd()
+
+        assertEquals(SessionType.NAP, sessionManager.state.value.sessionType)
+        assertEquals(NapPhase.CALIBRATING, sessionManager.state.value.napState.phase)
     }
 }

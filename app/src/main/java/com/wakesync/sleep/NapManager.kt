@@ -43,7 +43,9 @@ class NapManager(
     private val heartRateFlow: Flow<Int>? = null,
     private val locationFlow: Flow<GeoPoint>? = null,
     private val alertController: AlertControllerContract? = null,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
+    /** Receives HR_base once calibration ends so the rest estimator can compute ΔHR_relativa. */
+    private val onBaseHeartRateCalibrated: (Int) -> Unit = {}
 ) {
 
     companion object {
@@ -65,6 +67,15 @@ class NapManager(
     internal var absoluteCapJob: Job? = null
     private var dismissalCollectorJob: Job? = null
     private val isTerminating = AtomicBoolean(false)
+
+    /**
+     * F17: start timestamp of the Nap session this manager started, captured right after
+     * requestStartSession. Passed to SessionManager.endSession as expectedStartTimestamp so a late
+     * terminateSession (e.g. stopSession() from the coordinator's teardown thread) can never end a
+     * session started afterwards, such as the Transit started by resolveConflict.
+     */
+    @Volatile
+    private var ownedSessionStartTimestamp: Long? = null
 
     private var currentNapPhase: NapPhase = NapPhase.IDLE
     private var baseHeartRate: Int? = null
@@ -93,6 +104,7 @@ class NapManager(
         remainingNapSeconds = NAP_COUNTDOWN_SECONDS
 
         sessionManager.requestStartSession(SessionType.NAP, destination)
+        ownedSessionStartTimestamp = sessionManager.activeSessionStartTimestamp(SessionType.NAP)
 
         // Cierre 3: absoluteCapJob starts strictly in startSession() covering 40 min total from real start
         absoluteCapJob?.cancel()
@@ -136,7 +148,7 @@ class NapManager(
             runNapLifecycle()
         }
 
-        Log.i(TAG, "Nap session started (destination=${destination?.name})")
+        Log.i(TAG, "Nap session started (hasDestination=${destination != null})")
     }
 
     private suspend fun CoroutineScope.runNapLifecycle() {
@@ -172,6 +184,13 @@ class NapManager(
             DEFENSIVE_FALLBACK_HR_BPM
         }
         baseHeartRate = calibratedHr
+        if (calibrationSamples.isNotEmpty()) {
+            onBaseHeartRateCalibrated(calibratedHr)
+        } else {
+            // The invented fallback must not feed the estimator: without real HR_base it reports
+            // invalid data (SENSOR_UNAVAILABLE) instead of scoring against a made-up baseline
+            Log.w(TAG, "HR_base not sent to the rest estimator: calibration had no valid readings")
+        }
 
         // --- PHASE 2: Monitoring ---
         currentNapPhase = NapPhase.MONITORING
@@ -324,7 +343,12 @@ class NapManager(
             absoluteCapJob = null
             dismissalCollectorJob?.cancel()
             dismissalCollectorJob = null
-            sessionManager.endSession(outcome, stopActiveAlert = stopActiveAlert)
+            val owned = ownedSessionStartTimestamp
+            if (owned != null) {
+                sessionManager.endSession(outcome, stopActiveAlert = stopActiveAlert, expectedStartTimestamp = owned)
+            } else {
+                Log.w(TAG, "terminateSession($outcome): this manager never started a session; nothing to end")
+            }
             Log.i(TAG, "Nap session terminated with outcome: $outcome (stopActiveAlert=$stopActiveAlert)")
         }
     }
