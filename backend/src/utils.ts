@@ -3,8 +3,14 @@
  * - Constant-time token comparison (mitigating timing attacks)
  * - In-memory IP rate limiter (60 req/min)
  * - Sanitized request logging (method, path, status, latency only - RNF-BE-02)
- * - Upstream fetch with strict AbortController timeouts (4s Google / 8s Gemini)
+ * - Upstream fetch with strict AbortController timeouts (4s Mapbox / 8s DeepSeek)
  */
+
+/** Timeout for map provider calls (Mapbox Search Box, Geocoding and Static Images APIs). */
+export const UPSTREAM_TIMEOUT_MS = 4000;
+
+/** Base URL of the Mapbox REST APIs. */
+export const MAPBOX_API_BASE = 'https://api.mapbox.com';
 
 export class UpstreamTimeoutError extends Error {
   constructor(message = 'Upstream service timeout') {
@@ -90,9 +96,20 @@ export function resetRateLimits(): void {
  * NEVER logs search queries, coordinates, payloads, headers, or biometric aggregates.
  */
 export function logSanitized(method: string, path: string, status: number, latencyMs: number): void {
-  // Strip any query parameters from path for logging privacy
-  const sanitizedPath = path.split('?')[0];
+  const sanitizedPath = toLogPath(path);
   console.log(`[WakeSyncGateway] ${method} ${sanitizedPath} - ${status} (${latencyMs.toFixed(1)}ms)`);
+}
+
+/**
+ * Reduces a request path to a loggable route template: strips the query string and replaces
+ * the place identifier, which reveals the place the user chose, with `{placeId}`.
+ */
+export function toLogPath(path: string): string {
+  const withoutQuery = path.split('?')[0];
+  if (withoutQuery.startsWith('/v1/places/') && withoutQuery !== '/v1/places/autocomplete') {
+    return '/v1/places/{placeId}';
+  }
+  return withoutQuery;
 }
 
 /**

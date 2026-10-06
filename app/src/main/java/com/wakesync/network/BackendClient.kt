@@ -229,7 +229,7 @@ open class BackendClient(
                         val parsed = parser(bodyString)
                         ApiResult.Success(parsed)
                     } catch (e: Exception) {
-                        Log.e(TAG, "Parsing error for $loggingPath: ${e.message}")
+                        Log.e(TAG, "Parsing error for $loggingPath: ${e::class.simpleName}")
                         ApiResult.ParseError
                     }
                 } else if (response.code == 504) {
@@ -247,7 +247,7 @@ open class BackendClient(
             logSanitized(request.method, loggingPath, 0, latency)
             ApiResult.NetworkUnavailable
         } catch (e: Exception) {
-            Log.e(TAG, "Unexpected error in $loggingPath: ${e.message}")
+            Log.e(TAG, "Unexpected error in $loggingPath: ${e::class.simpleName}")
             ApiResult.ParseError
         }
     }

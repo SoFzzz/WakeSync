@@ -26,8 +26,10 @@ export default {
       }
 
       // 2. Authentication: Validate X-WakeSync-App-Token via timing-safe comparison (RF-BE-03)
+      // Fail closed: a missing APP_TOKEN secret must never turn "no header" into a match
       const appToken = request.headers.get('X-WakeSync-App-Token') || '';
-      if (!timingSafeEqual(appToken, env.APP_TOKEN || '')) {
+      const expectedToken = env.APP_TOKEN || '';
+      if (expectedToken.length === 0 || !timingSafeEqual(appToken, expectedToken)) {
         response = jsonError('unauthorized', 'Missing or invalid app token', 401);
         logSanitized(method, pathname, response.status, performance.now() - startTime);
         return response;

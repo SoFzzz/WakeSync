@@ -22,4 +22,15 @@ object WakeSyncTextStyles {
     val Title = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
     val Body = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Normal)
     val Label = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium)
+
+    /**
+     * Excepción deliberada fuera de la escala de 4 niveles (Etapa 5, `DestinationMapScreen`):
+     * la atribución obligatoria "© Mapbox © OpenStreetMap" (RNF-PLC-03) vive en la franja
+     * inferior de la pantalla redonda, donde el círculo mide ~110dp de ancho — a `Label`
+     * (12sp) el texto no cabe completo dentro de esa cuerda y se recorta contra el cristal.
+     * `LegalAttribution` es solo para textos de marca/legales obligatorios que deben caber
+     * enteros en una zona segura angosta; no usar para contenido de producto normal (para eso
+     * están los 4 niveles de arriba).
+     */
+    val LegalAttribution = TextStyle(fontSize = 9.sp, fontWeight = FontWeight.Medium)
 }

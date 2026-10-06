@@ -1,10 +1,14 @@
 import { Env, AutocompleteRequest, AutocompleteResponse, PlaceDetailsResponse, ErrorResponse } from './types';
-import { upstreamFetch, UpstreamTimeoutError } from './utils';
+import { upstreamFetch, UpstreamTimeoutError, UPSTREAM_TIMEOUT_MS, MAPBOX_API_BASE } from './utils';
 
-const GOOGLE_TIMEOUT_MS = 4000; // 4 seconds (RF-BE-01, Appendix F)
+const MAX_PREDICTIONS = 5; // Maximum 5 items (RF-PLC-01)
+const SUGGEST_TYPES = 'poi,address,place,street';
 
 /**
  * Handler for POST /v1/places/autocomplete (RF-PLC-01, Appendix F.3).
+ *
+ * Adapts the request to the Mapbox Search Box API `/suggest` endpoint. The HTTP contract
+ * towards the watch (Appendix F) is unchanged.
  */
 export async function handlePlacesAutocomplete(
   request: Request,
@@ -42,74 +46,62 @@ export async function handlePlacesAutocomplete(
     }
   }
 
-  const googlePayload: any = {
-    input: query.trim(),
-    sessionToken: sessionToken.trim(),
-    languageCode: 'es',
-    regionCode: 'co',
-  };
-
+  const params = new URLSearchParams({
+    q: query.trim(),
+    session_token: sessionToken.trim(),
+    country: 'co',
+    language: 'es',
+    limit: String(MAX_PREDICTIONS),
+    // Excludes category/brand suggestions, which have no coordinates to navigate to
+    types: SUGGEST_TYPES,
+    access_token: env.MAPBOX_ACCESS_TOKEN,
+  });
   if (bias) {
-    googlePayload.locationBias = {
-      circle: {
-        center: {
-          latitude: bias.lat,
-          longitude: bias.lng,
-        },
-        radius: 20000.0, // 20 km circle
-      },
-    };
+    // Mapbox expects "longitude,latitude" (reversed with respect to the app's lat/lng)
+    params.set('proximity', `${bias.lng},${bias.lat}`);
   }
 
   try {
     const upstreamRes = await upstreamFetch(
-      'https://places.googleapis.com/v1/places:autocomplete',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': env.GOOGLE_MAPS_API_KEY,
-        },
-        body: JSON.stringify(googlePayload),
-      },
-      GOOGLE_TIMEOUT_MS
+      `${MAPBOX_API_BASE}/search/searchbox/v1/suggest?${params.toString()}`,
+      { method: 'GET' },
+      UPSTREAM_TIMEOUT_MS
     );
 
     if (!upstreamRes.ok) {
-      const errText = await upstreamRes.text().catch(() => '');
-      return jsonError('upstream_error', `Places API error: ${upstreamRes.status} ${errText}`, 502);
+      return jsonError('upstream_error', `Search suggest error: ${upstreamRes.status}`, 502);
     }
 
     const data: any = await upstreamRes.json();
     const suggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
 
     const predictions = suggestions
-      .filter((s: any) => s.placePrediction)
-      .slice(0, 5) // Maximum 5 items (RF-PLC-01)
-      .map((s: any) => {
-        const p = s.placePrediction;
-        return {
-          placeId: p.placeId || '',
-          primaryText: p.structuredFormat?.mainText?.text || p.text?.text || '',
-          secondaryText: p.structuredFormat?.secondaryText?.text,
-        };
-      });
+      .filter((s: any) => typeof s.mapbox_id === 'string' && s.mapbox_id.length > 0)
+      .slice(0, MAX_PREDICTIONS)
+      .map((s: any) => ({
+        placeId: s.mapbox_id,
+        primaryText: s.name || '',
+        secondaryText: s.place_formatted || s.full_address || undefined,
+      }));
 
     const responseBody: AutocompleteResponse = { predictions };
     return new Response(JSON.stringify(responseBody), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof UpstreamTimeoutError) {
-      return jsonError('upstream_timeout', 'Google Places API timed out', 504);
+      return jsonError('upstream_timeout', 'Search suggest timed out', 504);
     }
-    return jsonError('upstream_error', err.message || 'Unknown upstream error', 502);
+    return jsonError('upstream_error', 'Search suggest request failed', 502);
   }
 }
 
 /**
  * Handler for GET /v1/places/{placeId} (RF-PLC-02, Appendix F.3).
+ *
+ * Adapts the request to the Mapbox Search Box API `/retrieve/{mapbox_id}` endpoint, which
+ * closes the billing session opened by `/suggest` with the same session token.
  */
 export async function handlePlaceDetails(
   placeId: string,
@@ -124,45 +116,48 @@ export async function handlePlaceDetails(
     return jsonError('invalid_request', 'sessionToken query parameter is required', 400);
   }
 
-  const url = `https://places.googleapis.com/v1/places/${encodeURIComponent(
-    placeId
-  )}?languageCode=es&sessionToken=${encodeURIComponent(sessionToken)}`;
+  const params = new URLSearchParams({
+    session_token: sessionToken.trim(),
+    language: 'es',
+    access_token: env.MAPBOX_ACCESS_TOKEN,
+  });
+  const url = `${MAPBOX_API_BASE}/search/searchbox/v1/retrieve/${encodeURIComponent(placeId)}?${params.toString()}`;
 
   try {
-    const upstreamRes = await upstreamFetch(
-      url,
-      {
-        method: 'GET',
-        headers: {
-          'X-Goog-Api-Key': env.GOOGLE_MAPS_API_KEY,
-          'X-Goog-FieldMask': 'id,displayName,formattedAddress,location',
-        },
-      },
-      GOOGLE_TIMEOUT_MS
-    );
+    const upstreamRes = await upstreamFetch(url, { method: 'GET' }, UPSTREAM_TIMEOUT_MS);
 
     if (!upstreamRes.ok) {
-      return jsonError('upstream_error', `Places Details API error: ${upstreamRes.status}`, 502);
+      return jsonError('upstream_error', `Search retrieve error: ${upstreamRes.status}`, 502);
     }
 
     const data: any = await upstreamRes.json();
+    const feature = Array.isArray(data.features) && data.features.length > 0 ? data.features[0] : null;
+    const coordinates = feature?.geometry?.coordinates;
+
+    if (!Array.isArray(coordinates) || coordinates.length < 2) {
+      return jsonError('upstream_error', 'Search retrieve returned no coordinates', 502);
+    }
+
+    const properties = feature.properties ?? {};
+    // GeoJSON coordinates are [longitude, latitude]
+    const [lng, lat] = coordinates;
     const responseBody: PlaceDetailsResponse = {
-      placeId: data.id || placeId,
-      name: data.displayName?.text || '',
-      address: data.formattedAddress || '',
-      lat: data.location?.latitude || 0,
-      lng: data.location?.longitude || 0,
+      placeId: properties.mapbox_id || placeId,
+      name: properties.name || '',
+      address: properties.full_address || properties.place_formatted || '',
+      lat,
+      lng,
     };
 
     return new Response(JSON.stringify(responseBody), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof UpstreamTimeoutError) {
-      return jsonError('upstream_timeout', 'Google Place Details API timed out', 504);
+      return jsonError('upstream_timeout', 'Search retrieve timed out', 504);
     }
-    return jsonError('upstream_error', err.message || 'Unknown upstream error', 502);
+    return jsonError('upstream_error', 'Search retrieve request failed', 502);
   }
 }
 

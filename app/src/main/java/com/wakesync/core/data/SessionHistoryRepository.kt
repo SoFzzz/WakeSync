@@ -69,6 +69,27 @@ class SessionHistoryRepository(private val context: Context) {
         }
     }
 
+    /**
+     * Updates an existing session record with its generated AI insight text (RF-INS-03).
+     *
+     * @param startTimestamp The unique timestamp identifying the session.
+     * @param insightText The generated insight text (validated to <=140 chars).
+     */
+    suspend fun updateInsight(startTimestamp: Long, insightText: String) {
+        context.dataStore.edit { preferences ->
+            val existingJson = preferences[KEY_HISTORY] ?: "[]"
+            val records = deserializeRecords(existingJson).map { record ->
+                if (record.startTimestamp == startTimestamp) {
+                    record.copy(insightText = insightText)
+                } else {
+                    record
+                }
+            }
+            preferences[KEY_HISTORY] = serializeRecords(records)
+            Log.d(TAG, "Updated insight for session at $startTimestamp")
+        }
+    }
+
     companion object {
         private const val TAG = "SessionHistoryRepo"
         private val KEY_HISTORY = stringPreferencesKey("session_history_json")
@@ -85,6 +106,9 @@ class SessionHistoryRepository(private val context: Context) {
                         put("restLatencySeconds", record.restLatencySeconds)
                     }
                     put("outcome", record.outcome.name)
+                    if (record.insightText != null) {
+                        put("insightText", record.insightText)
+                    }
                 }
                 array.put(obj)
             }
@@ -104,7 +128,8 @@ class SessionHistoryRepository(private val context: Context) {
                             startTimestamp = obj.getLong("startTimestamp"),
                             durationSeconds = obj.getInt("durationSeconds"),
                             restLatencySeconds = if (obj.has("restLatencySeconds")) obj.getInt("restLatencySeconds") else null,
-                            outcome = SessionOutcome.valueOf(obj.getString("outcome"))
+                            outcome = SessionOutcome.valueOf(obj.getString("outcome")),
+                            insightText = if (obj.has("insightText") && !obj.isNull("insightText")) obj.getString("insightText") else null
                         )
                     )
                 }

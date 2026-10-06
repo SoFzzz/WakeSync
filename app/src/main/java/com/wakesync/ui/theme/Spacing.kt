@@ -24,4 +24,51 @@ object WakeSyncSpacing {
 
     /** 7% de 227dp ≈ 16dp — dentro del rango 5–10% recomendado para listas en Wear. */
     val safeInsetHorizontal: Dp = 16.dp
+
+    /**
+     * Espacio inferior a reservar cuando el contenido centrado de una pantalla (arco + texto)
+     * convive con un botón anclado al borde inferior (componente 4.2, `padding(bottom = 30dp)`
+     * + alto del botón ~48dp + margen de aire). Sin esto, contenido centrado que crece (p. ej.
+     * el aviso de sensor 4.7 o el badge de simulación 4.6 sumados al resto) puede invadir
+     * visualmente el área del botón — caso real corregido en `NapScreen.kt` (Etapa 4).
+     *
+     * Se aplica solo a la columna de texto, nunca al arco de progreso (`progressArcDiameter`):
+     * envolver también el arco en este padding lo descentra respecto al borde redondo.
+     */
+    val bottomButtonReserve: Dp = 64.dp
+
+    /**
+     * Diámetro del arco de progreso central (componente 4.5) en Siesta y Transporte —
+     * antes un `200.dp` suelto repetido en cada pantalla/fase. F28 (Etapa 5): subido de
+     * 200dp a 212dp para que el anillo abrace más el borde redondo (personalidad "reloj
+     * clásico", sección 1) — con `strokeWidth` 6dp (`StrokeCap.Round`) el radio pintado
+     * queda en 109dp sobre una pantalla de 113.5dp de radio real (227dp de diámetro),
+     * ~4.5dp de aire hasta el cristal, suficiente para no recortarse contra la curvatura.
+     */
+    val progressArcDiameter: Dp = 212.dp
+
+    /** `padding(bottom = ...)` del botón primario de borde inferior (componente 4.2). */
+    val primaryButtonBottomPadding: Dp = 30.dp
+
+    /** Grosor de borde de contorno (tarjeta sin conexión, botón `[Reintentar]`, ambiente): 1dp. */
+    val borderHairline: Dp = 1.dp
+
+    /** Área táctil mínima (sección 3.4): 48dp, también alto mínimo de la fila de historial (4.9). */
+    val minTouchTarget: Dp = 48.dp
+
+    /** Ícono de fila/botón (tipo de sesión en 4.9, ícono de 4.3). */
+    val iconSmall: Dp = 20.dp
+
+    /** Ícono grande del estado vacío (componente 4.10). */
+    val iconLarge: Dp = 32.dp
+
+    /** Punto indicador "tiene insight" de la fila de historial (4.9). */
+    val statusDot: Dp = 8.dp
+
+    /** Círculo visible del botón secundario de ícono (4.3) dentro de su área táctil de 48dp. */
+    val secondaryChipVisual: Dp = 36.dp
+
+    /** Arco de carga pequeño de la tarjeta de insight (variante `Loading` de 4.4) y su trazo. */
+    val progressSmall: Dp = 28.dp
+    val progressSmallStroke: Dp = 3.dp
 }

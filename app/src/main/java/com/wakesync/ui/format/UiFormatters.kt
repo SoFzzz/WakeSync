@@ -1,6 +1,10 @@
 package com.wakesync.ui.format
 
+import com.wakesync.core.insights.InsightState
 import com.wakesync.core.model.SessionRecord
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
@@ -69,5 +73,61 @@ object UiFormatters {
     fun resolveJustEndedSessionRecord(history: List<SessionRecord>, preEndTopRecordId: String?): SessionRecord? {
         val topNow = mostRecentSessionRecord(history) ?: return null
         return topNow.takeIf { it.id != preEndTopRecordId }
+    }
+
+    private val HISTORY_DATE_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM · HH:mm", Locale.US)
+
+    /**
+     * Formats a session start time for a Historial row as `dd/MM · HH:mm` (numeric, so it never
+     * depends on localized month abbreviations fitting the row width).
+     */
+    fun formatHistoryDateTime(epochMillis: Long, zoneId: ZoneId = ZoneId.systemDefault()): String =
+        HISTORY_DATE_TIME.format(Instant.ofEpochMilli(epochMillis).atZone(zoneId))
+
+    private val HISTORY_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM", Locale.US)
+    private val HISTORY_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
+
+    /**
+     * Historial row, line 1 date part (`dd/MM`). The time moves to line 2 so line 1 fits next to
+     * the "has insight" dot without truncating.
+     */
+    fun formatHistoryDate(epochMillis: Long, zoneId: ZoneId = ZoneId.systemDefault()): String =
+        HISTORY_DATE.format(Instant.ofEpochMilli(epochMillis).atZone(zoneId))
+
+    /** Historial row, line 2 start time (`HH:mm`, 24h). */
+    fun formatHistoryTime(epochMillis: Long, zoneId: ZoneId = ZoneId.systemDefault()): String =
+        HISTORY_TIME.format(Instant.ofEpochMilli(epochMillis).atZone(zoneId))
+
+    /**
+     * Orders Historial newest-first by [SessionRecord.startTimestamp] — same reason as
+     * [mostRecentSessionRecord]: the repository's list order is not a contract.
+     */
+    fun historyNewestFirst(history: List<SessionRecord>): List<SessionRecord> =
+        history.sortedByDescending { it.startTimestamp }
+
+    /**
+     * Resolves what the Detalle screen's insight card shows for [record] (RF-INS-03).
+     *
+     * - A persisted [SessionRecord.insightText] always wins: shown with no backend call.
+     * - If this screen never requested an insight for [record] ([requestedForId] differs), returns
+     *   null: the caller shows the `NoInsight` variant with `[Generar Insight]`.
+     * - [InsightState.Ready] from the shared contract is NOT trusted here: the contract is a
+     *   singleton whose state carries no record id, so a late response for a record opened earlier
+     *   could land while this one is open. InsightRepository persists the text into the matching
+     *   record before emitting Ready, so this record's own text arrives through [record] instead;
+     *   until then the card keeps showing Loading.
+     */
+    fun resolveDetailInsightState(
+        record: SessionRecord,
+        requestedForId: String?,
+        contractState: InsightState
+    ): InsightState? {
+        val savedText = record.insightText
+        if (!savedText.isNullOrBlank()) return InsightState.Ready(savedText)
+        if (requestedForId != record.id) return null
+        return when (contractState) {
+            InsightState.Idle, is InsightState.Ready -> InsightState.Loading
+            else -> contractState
+        }
     }
 }

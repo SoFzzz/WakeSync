@@ -9,11 +9,13 @@ import com.wakesync.core.model.RestState
 import com.wakesync.core.model.SessionOutcome
 import com.wakesync.core.model.SessionType
 import com.wakesync.core.session.SessionManager
+import com.wakesync.sensors.mock.MockSensorEngine
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
@@ -407,6 +409,85 @@ class NapManagerTest {
         assertTrue("Cap job must be cancelled after proximity interrupt", capJob3.isCancelled)
         assertNull("NapManager reference must be cleared", napManager.absoluteCapJob)
         assertEquals(NapPhase.COMPLETED, sessionManager.state.value.napState.phase)
+    }
+
+    @Test
+    fun `calibration hands the averaged HR_base to the rest estimator callback`() = testScope.runTest {
+        val calibrated = mutableListOf<Int>()
+        val wiredNapManager = NapManager(
+            sessionManager = sessionManager,
+            restEvaluationFlow = restEvaluationFlow,
+            heartRateFlow = heartRateFlow,
+            alertController = mockAlertController,
+            scope = testScope,
+            onBaseHeartRateCalibrated = { calibrated.add(it) }
+        )
+
+        wiredNapManager.startSession()
+        heartRateFlow.emit(80)
+        advanceTimeBy(5_000L)
+        heartRateFlow.emit(90)
+        advanceTimeBy(16_000L)
+        runCurrent()
+
+        assertEquals(NapPhase.MONITORING, sessionManager.state.value.napState.phase)
+        assertEquals(listOf(85), calibrated)
+        wiredNapManager.stopSession()
+    }
+
+    @Test
+    fun `calibration without readings keeps the fallback away from the rest estimator callback`() = testScope.runTest {
+        val calibrated = mutableListOf<Int>()
+        val wiredNapManager = NapManager(
+            sessionManager = sessionManager,
+            restEvaluationFlow = restEvaluationFlow,
+            alertController = mockAlertController,
+            scope = testScope,
+            onBaseHeartRateCalibrated = { calibrated.add(it) }
+        )
+
+        wiredNapManager.startSession()
+        advanceTimeBy(21_000L)
+        runCurrent()
+
+        // Phase still advances with the internal 70 BPM fallback, but the estimator never receives it
+        assertEquals(NapPhase.MONITORING, sessionManager.state.value.napState.phase)
+        assertTrue("Callback must not be invoked without real HR readings", calibrated.isEmpty())
+        wiredNapManager.stopSession()
+    }
+
+    @Test
+    fun `F18 - simulated nap started during calibration hands the nominal baseHr to the callback`() = testScope.runTest {
+        // Mirrors AppSessionCoordinator.startSimulateNap: the mock's ramp only begins once the
+        // phase leaves CALIBRATING, so a real-time-shortened ramp (B2a) can never bleed into the
+        // calibration window and drag the calibrated base HR below the nominal 75.
+        val calibrated = mutableListOf<Int>()
+        val mockSensorEngine = MockSensorEngine(dispatcher = testDispatcher)
+        val wiredNapManager = NapManager(
+            sessionManager = sessionManager,
+            restEvaluationFlow = restEvaluationFlow,
+            heartRateFlow = mockSensorEngine.getHeartRate(),
+            locationFlow = locationFlow,
+            alertController = mockAlertController,
+            scope = testScope,
+            onBaseHeartRateCalibrated = { calibrated.add(it) }
+        )
+
+        wiredNapManager.startSession()
+        mockSensorEngine.startNapSimulation(
+            testScope,
+            durationSeconds = 10,
+            baseHr = 75,
+            awaitRampStart = { sessionManager.state.first { it.napState.phase != NapPhase.CALIBRATING } }
+        )
+        advanceTimeBy(21_000L)
+        runCurrent()
+
+        assertEquals(NapPhase.MONITORING, sessionManager.state.value.napState.phase)
+        assertEquals(listOf(75), calibrated)
+
+        wiredNapManager.stopSession()
+        mockSensorEngine.stopSimulation()
     }
 
     class TestAlertController : AlertControllerContract {

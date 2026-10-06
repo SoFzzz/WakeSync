@@ -23,4 +23,15 @@ data class WakeSyncState(
     val pendingConflict: SessionConflict? = null,
     val isSimulated: Boolean = false,
     val missingPermissions: List<String> = emptyList()
-)
+) {
+    /**
+     * Confirmed geographic destination (GeoPoint with name) of the active session (RF-CORE-05).
+     *
+     * Read-only derived property resolving directly from transitState.destination or napState.destination
+     * to avoid duplicated state (wakesync-architecture). Its value is only meaningful while
+     * sessionType != SessionType.NONE, and must not be interpreted as a "last visited destination".
+     */
+    val confirmedDestination: GeoPoint?
+        get() = if (sessionType == SessionType.TRANSIT) transitState.destination else napState.destination
+}
+

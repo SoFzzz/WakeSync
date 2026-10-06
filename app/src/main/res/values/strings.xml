@@ -11,7 +11,6 @@
 
     <!-- Actions & Buttons -->
     <string name="btn_start_nap">Siesta</string>
-    <string name="btn_add_destination">+ Destino</string>
     <string name="btn_start_transit">Transporte</string>
     <string name="btn_stop">Detener</string>
     <string name="btn_dismiss_alert">Descartar Alarma</string>
@@ -25,6 +24,7 @@
     <!-- Nap Screen Stages -->
     <string name="nap_calibrating_title">Calibrando Basal</string>
     <string name="nap_calibrating_desc">Mantén la calma y respira profundo…</string>
+    <string name="nap_calibrating_countdown_format">%1$ds</string>
     <string name="nap_monitoring_title">Monitoreando</string>
     <string name="nap_deep_rest_title">Reposo Confirmado</string>
     <string name="nap_base_hr_format">FC Base: %1$d BPM</string>
@@ -32,6 +32,11 @@
     <string name="nap_rest_score_format">Score: %1$.2f</string>
     <string name="nap_remaining_time_format">%1$02d:%2$02d</string>
     <string name="nap_dest_distance_format">Destino: %1$.0f m</string>
+    <string name="siesta_with_destination_title">Siesta con Destino</string>
+    <string name="siesta_with_destination_subtitle">Te despierta al llegar</string>
+
+    <!-- Simulation Badge (design system component 4.6) -->
+    <string name="badge_simulation">Simulación</string>
 
     <!-- Transit Screen -->
     <string name="transit_tracking_title">En Ruta</string>
@@ -77,12 +82,53 @@
     <string name="settings_permissions_missing">Faltan permisos requeridos</string>
     <string name="settings_simulation_title">Modo Simulación</string>
     <string name="settings_simulation_desc">Usa datos sintéticos para evaluación</string>
+    <string name="settings_simulation_on">Estado: Simulado (activo)</string>
+    <string name="settings_simulation_off">Estado: Sensores reales (inactivo)</string>
     <string name="settings_app_info">WakeSync Wear OS v1.0.0</string>
 
-    <!-- Predefined Destinations -->
-    <string name="dest_campus_ucc">Campus UCC</string>
-    <string name="dest_estacion_metro">Estación Metro</string>
-    <string name="dest_casa">Casa</string>
-    <string name="dest_none">Sin Destino</string>
-    <string name="select_destination_title">Seleccionar Destino</string>
+    <!-- Historial + Detalle (Etapa 7, RF-INS-03) -->
+    <string name="title_history">Historial</string>
+    <string name="history_subtitle_home">Ver sesiones anteriores</string>
+    <string name="history_empty_state">Aún no hay sesiones</string>
+    <string name="cd_has_insight">Con insight guardado</string>
+    <string name="insight_none">Sin insight generado</string>
+    <string name="btn_generate_insight">Generar Insight</string>
+
+    <!-- Siesta → Transporte (F17, conflicto de sesión) -->
+    <string name="cd_start_transit">Iniciar Transporte</string>
+
+    <!-- Destination Picker: Buscar Destino (CR-01, RF-PLC-01/02) -->
+    <string name="title_dest_search">Destino</string>
+    <string name="dest_search_hint">Escribe o dicta un destino</string>
+    <string name="btn_search">Buscar</string>
+    <string name="dest_search_subtitle">Voz o teclado</string>
+    <string name="btn_choose_on_map">Elegir en Mapa</string>
+    <string name="dest_choose_on_map_subtitle">Elige un punto en el mapa</string>
+    <string name="dest_search_min_chars_hint">Escribe al menos 3 caracteres</string>
+    <string name="dest_search_no_results">Sin resultados</string>
+    <string name="transit_select_destination_prompt">Elige tu destino</string>
+
+    <!-- Destination Picker: Mapa de Destino (CR-01, RF-PLC-03) -->
+    <string name="title_dest_map">Mapa de Destino</string>
+    <string name="map_attribution" translatable="false">© Mapbox © OpenStreetMap</string>
+    <string name="map_logo_description">Logotipo de Mapbox</string>
+    <string name="btn_pin_destination">Fijar Destino</string>
+
+    <!-- Destination Picker: Confirmar Destino (CR-01, RF-PLC-04) -->
+    <string name="title_dest_confirm">Confirmar Destino</string>
+    <string name="dest_confirm_unnamed">Destino sin nombre</string>
+    <string name="dest_confirm_distance_format">%1$s en línea recta</string>
+
+    <!-- Destination Picker: Sin conexión / Error (CR-01, RF-PLC-05) -->
+    <string name="dest_offline_msg">Sin conexión. Revisa tu red e intenta de nuevo.</string>
+    <string name="btn_retry">Reintentar</string>
+
+    <!-- Resumen Post-Sesión con Insight (CR-01, RF-INS-02 a 04) -->
+    <string name="insight_loading">Generando resumen…</string>
+    <string name="insight_offline">Sin conexión</string>
+    <string name="insight_failed">Resumen no disponible. Intenta de nuevo</string>
+    <string name="btn_back_to_home">Volver a Inicio</string>
+    <string name="session_outcome_completed">Completada</string>
+    <string name="session_outcome_timed_out">Tiempo Agotado</string>
+    <string name="session_outcome_cancelled">Cancelada</string>
 </resources>

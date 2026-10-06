@@ -5,12 +5,16 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
+import androidx.wear.ambient.AmbientLifecycleObserver
 import com.wakesync.core.data.SessionHistoryRepository
 import com.wakesync.core.model.AlertLevel
 import com.wakesync.core.session.SessionManager
+import com.wakesync.ui.ambient.LocalAmbientMode
 import com.wakesync.ui.navigation.WakeSyncNavHost
 import com.wakesync.ui.theme.WakeSyncTheme
 import kotlinx.coroutines.flow.collectLatest
@@ -23,11 +27,27 @@ import kotlinx.coroutines.launch
  * - Solicits runtime permissions on startup via [ActivityResultContracts.RequestMultiplePermissions] (RF-CORE-04).
  * - Manages [WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON] during active haptic alert levels.
  * - Subscribes to central StateFlow<WakeSyncState> from [SessionManager].
+ * - Enables Always-On via [AmbientLifecycleObserver] and provides [LocalAmbientMode] to every
+ *   screen (F25). ActiveAlertOverlay still forces interactive rendering.
  */
 class MainActivity : ComponentActivity() {
 
     private lateinit var sessionManager: SessionManager
     private lateinit var historyRepository: SessionHistoryRepository
+
+    private val isAmbient = mutableStateOf(false)
+
+    private val ambientCallback = object : AmbientLifecycleObserver.AmbientLifecycleCallback {
+        override fun onEnterAmbient(ambientDetails: AmbientLifecycleObserver.AmbientDetails) {
+            isAmbient.value = true
+        }
+
+        override fun onExitAmbient() {
+            isAmbient.value = false
+        }
+    }
+
+    private val ambientObserver by lazy { AmbientLifecycleObserver(this, ambientCallback) }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -37,6 +57,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lifecycle.addObserver(ambientObserver)
 
         sessionManager = SessionManager.getInstance(applicationContext)
         historyRepository = SessionHistoryRepository(applicationContext)
@@ -47,19 +68,21 @@ class MainActivity : ComponentActivity() {
         setContent {
             val state by sessionManager.state.collectAsState()
 
-            WakeSyncTheme {
-                WakeSyncNavHost(
-                    state = state,
-                    sessionManager = sessionManager,
-                    historyRepository = historyRepository,
-                    onRequestPermissions = { launchPermissions() },
-                    onSimulateNap = {
-                        sessionManager.startSimulateNap()
-                    },
-                    onSimulateRoute = {
-                        sessionManager.startSimulateRoute(state.transitState.destination)
-                    }
-                )
+            CompositionLocalProvider(LocalAmbientMode provides isAmbient.value) {
+                WakeSyncTheme {
+                    WakeSyncNavHost(
+                        state = state,
+                        sessionManager = sessionManager,
+                        historyRepository = historyRepository,
+                        onRequestPermissions = { launchPermissions() },
+                        onSimulateNap = {
+                            sessionManager.startSimulateNap()
+                        },
+                        onSimulateRoute = {
+                            sessionManager.startSimulateRoute(state.transitState.destination)
+                        }
+                    )
+                }
             }
         }
     }

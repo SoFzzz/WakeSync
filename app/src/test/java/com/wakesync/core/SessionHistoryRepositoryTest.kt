@@ -54,6 +54,7 @@ class SessionHistoryRepositoryTest {
         assertEquals(napRecordWithLatency.durationSeconds, resultNap.durationSeconds)
         assertEquals(180, resultNap.restLatencySeconds)
         assertEquals(napRecordWithLatency.outcome, resultNap.outcome)
+        assertNull(resultNap.insightText)
 
         // Verify Record 2 (TRANSIT with null restLatencySeconds)
         val resultTransit = deserializedList[1]
@@ -63,6 +64,49 @@ class SessionHistoryRepositoryTest {
         assertEquals(transitRecordWithoutLatency.durationSeconds, resultTransit.durationSeconds)
         assertNull(resultTransit.restLatencySeconds)
         assertEquals(transitRecordWithoutLatency.outcome, resultTransit.outcome)
+        assertNull(resultTransit.insightText)
+    }
+
+    @Test
+    fun jsonRoundTrip_preservesInsightText() {
+        val recordWithInsight = SessionRecord(
+            id = UUID.randomUUID().toString(),
+            sessionType = SessionType.NAP,
+            startTimestamp = 1716120000000L,
+            durationSeconds = 1320,
+            restLatencySeconds = 240,
+            outcome = SessionOutcome.COMPLETED,
+            insightText = "Tardaste 4 min en relajarte y completaste tu siesta."
+        )
+
+        val jsonString = SessionHistoryRepository.serializeRecords(listOf(recordWithInsight))
+        val deserialized = SessionHistoryRepository.deserializeRecords(jsonString)
+
+        assertEquals(1, deserialized.size)
+        assertEquals("Tardaste 4 min en relajarte y completaste tu siesta.", deserialized[0].insightText)
+    }
+
+    @Test
+    fun deserialize_legacyRecordsWithoutInsightText_defaultsToNull() {
+        // Legacy JSON without insightText field (v1.0 schema)
+        val legacyJson = """
+            [
+              {
+                "id": "legacy-id-123",
+                "sessionType": "NAP",
+                "startTimestamp": 1716120000000,
+                "durationSeconds": 900,
+                "restLatencySeconds": 180,
+                "outcome": "COMPLETED"
+              }
+            ]
+        """.trimIndent()
+
+        val deserialized = SessionHistoryRepository.deserializeRecords(legacyJson)
+
+        assertEquals(1, deserialized.size)
+        assertEquals("legacy-id-123", deserialized[0].id)
+        assertNull("insightText must default to null for legacy records", deserialized[0].insightText)
     }
 
     @Test
