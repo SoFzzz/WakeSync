@@ -75,14 +75,14 @@ fun TransitScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueBackground),
+            .background(if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.NavyDeep),
         contentAlignment = Alignment.Center
     ) {
         if (!isAmbient) {
             CircularProgressArc(
                 progress = progress,
-                color = WakeSyncColors.RoseGoldPastel,
-                trackColor = WakeSyncColors.RoseGoldPastelTrack,
+                color = WakeSyncColors.SageTeal,
+                trackColor = WakeSyncColors.SageTealMuted,
                 modifier = Modifier.size(WakeSyncSpacing.progressArcDiameter)
             )
         }
@@ -103,7 +103,7 @@ fun TransitScreen(
             Text(
                 text = destName,
                 style = WakeSyncTextStyles.Title,
-                color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.RoseGold,
+                color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.SageTeal,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
@@ -138,7 +138,7 @@ fun TransitScreen(
             Text(
                 text = if (isDeepRest) stringResource(R.string.transit_state_deep_rest) else stringResource(R.string.transit_state_awake),
                 style = WakeSyncTextStyles.Label,
-                color = if (isDeepRest) WakeSyncColors.RoseGold else WakeSyncColors.RoseGold,
+                color = if (isDeepRest) WakeSyncColors.PlumLavender else WakeSyncColors.SageTeal,
                 textAlign = TextAlign.Center
             )
         }

@@ -31,26 +31,6 @@ android {
         buildConfigField("String", "BACKEND_APP_TOKEN", "\"$backendAppToken\"")
     }
 
-    // Release keystore lives outside the repo; secrets are read from local.properties.
-    signingConfigs {
-        create("release") {
-            val props = Properties().apply {
-                val file = rootProject.file("local.properties")
-                if (file.exists()) FileInputStream(file).use { load(it) }
-            }
-            storeFile = rootDir.parentFile.resolve("keys/wakesync-release.jks")
-            storePassword = props.getProperty("wakesync.storePassword")
-            keyAlias = props.getProperty("wakesync.keyAlias")
-            keyPassword = props.getProperty("wakesync.keyPassword")
-        }
-    }
-
-    buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("release")
-        }
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true

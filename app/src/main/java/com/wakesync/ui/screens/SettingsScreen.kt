@@ -76,7 +76,7 @@ fun SettingsScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(WakeSyncColors.BlueBackground),
+                .background(WakeSyncColors.NavyDeep),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -89,7 +89,7 @@ fun SettingsScreen(
                 Text(
                     text = stringResource(R.string.settings_clear_history_confirm_title),
                     style = WakeSyncTextStyles.Title,
-                    color = WakeSyncColors.RoseGold,
+                    color = WakeSyncColors.EmberRose,
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
@@ -109,7 +109,7 @@ fun SettingsScreen(
                         onClick = { showClearConfirmDialog = false },
                         modifier = Modifier.sizeIn(minWidth = 50.dp, minHeight = 48.dp),
                         shape = CircleShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = WakeSyncColors.BlueCard)
+                        colors = ButtonDefaults.buttonColors(containerColor = WakeSyncColors.BlueDeep)
                     ) {
                         Text(text = stringResource(R.string.btn_cancel), style = WakeSyncTextStyles.Label)
                     }
@@ -121,7 +121,7 @@ fun SettingsScreen(
                         },
                         modifier = Modifier.sizeIn(minWidth = 50.dp, minHeight = 48.dp),
                         shape = CircleShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = WakeSyncColors.RoseGold)
+                        colors = ButtonDefaults.buttonColors(containerColor = WakeSyncColors.EmberRose)
                     ) {
                         Text(text = stringResource(R.string.btn_confirm), style = WakeSyncTextStyles.Label)
                     }
@@ -134,7 +134,7 @@ fun SettingsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueBackground),
+            .background(if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.NavyDeep),
         contentAlignment = Alignment.Center
     ) {
         ScalingLazyColumn(
@@ -169,7 +169,7 @@ fun SettingsScreen(
                         .padding(vertical = 3.dp),
                     shape = WakeSyncShapes.small,
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueCard
+                        containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueDeep
                     ),
                     border = if (isAmbient) CardDefaults.outlinedCardBorder() else null
                 ) {
@@ -183,7 +183,7 @@ fun SettingsScreen(
                         Text(
                             text = stringResource(R.string.btn_clear_history),
                             style = WakeSyncTextStyles.Label,
-                            color = WakeSyncColors.RoseGold
+                            color = WakeSyncColors.EmberRose
                         )
                     }
                 }
@@ -198,7 +198,7 @@ fun SettingsScreen(
                         .padding(vertical = 3.dp),
                     shape = WakeSyncShapes.small,
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueCard
+                        containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueDeep
                     ),
                     border = if (isAmbient) CardDefaults.outlinedCardBorder() else null
                 ) {
@@ -214,7 +214,7 @@ fun SettingsScreen(
                             text = if (hasMissing) stringResource(R.string.settings_permissions_missing)
                             else stringResource(R.string.settings_permissions_all_granted),
                             style = WakeSyncTextStyles.Label,
-                            color = if (hasMissing) WakeSyncColors.WarningOchre else WakeSyncColors.RoseGold
+                            color = if (hasMissing) WakeSyncColors.WarningOchre else WakeSyncColors.SageTeal
                         )
                     }
                 }
@@ -229,7 +229,7 @@ fun SettingsScreen(
                         .padding(vertical = 3.dp),
                     shape = WakeSyncShapes.small,
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueCard
+                        containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueDeep
                     ),
                     border = if (isAmbient) CardDefaults.outlinedCardBorder() else null
                 ) {
@@ -244,7 +244,7 @@ fun SettingsScreen(
                             text = if (state.isSimulated) stringResource(R.string.settings_simulation_on)
                             else stringResource(R.string.settings_simulation_off),
                             style = WakeSyncTextStyles.Label,
-                            color = if (state.isSimulated) WakeSyncColors.RoseGold else WakeSyncColors.TanMuted
+                            color = if (state.isSimulated) WakeSyncColors.SteelBlue else WakeSyncColors.TanMuted
                         )
                     }
                 }

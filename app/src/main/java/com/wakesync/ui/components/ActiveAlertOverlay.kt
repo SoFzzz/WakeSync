@@ -75,7 +75,7 @@ fun ActiveAlertOverlay(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .background(WakeSyncColors.BlueBackground),
+                .background(WakeSyncColors.PureBlack),
             contentAlignment = Alignment.Center
         ) {
             // Background pulsing glow
@@ -84,7 +84,7 @@ fun ActiveAlertOverlay(
                     .fillMaxSize()
                     .background(
                         if (isUrgent) WakeSyncColors.EmberRoseMuted.copy(alpha = 0.65f)
-                        else WakeSyncColors.BlueCard.copy(alpha = 0.5f)
+                        else WakeSyncColors.BlueDeep.copy(alpha = 0.5f)
                     )
             )
 
@@ -130,7 +130,7 @@ fun ActiveAlertOverlay(
                 // Contrast bug fixed here (pre-existing, not introduced this stage): a solid
                 // EmberRose fill needs onPrimary/NavyDeep text for the skill's documented
                 // 4.81:1 (section 2.4) — CreamSoft on EmberRose measures only ~2.4:1, well
-                // under AA. BlueCard's fill keeps CreamSoft, unchanged.
+                // under AA. BlueDeep's fill keeps CreamSoft, unchanged.
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier
@@ -138,7 +138,7 @@ fun ActiveAlertOverlay(
                         .scale(pulseScale),
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isUrgent) WakeSyncColors.EmberRose else WakeSyncColors.BlueCard,
+                        containerColor = if (isUrgent) WakeSyncColors.EmberRose else WakeSyncColors.BlueDeep,
                         contentColor = if (isUrgent) WakeSyncColors.NavyDeep else WakeSyncColors.CreamSoft
                     )
                 ) {

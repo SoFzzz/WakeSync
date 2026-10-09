@@ -71,7 +71,7 @@ fun SessionSummaryScreen(
 ) {
     val isAmbient = LocalAmbientMode.current
     val scrollState = rememberScalingLazyListState()
-    val screenBackground = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueBackground
+    val screenBackground = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.NavyDeep
 
     // The back gesture must dismiss the summary the same way [Volver a Inicio] does (F10):
     // otherwise it re-opens on the next Activity recreation with no way out.
@@ -102,7 +102,7 @@ fun SessionSummaryScreen(
                 Text(
                     text = "$sessionLabel · $outcomeLabel",
                     style = WakeSyncTextStyles.Label,
-                    color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.RoseGold,
+                    color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.SageTeal,
                     textAlign = TextAlign.Center
                 )
             }

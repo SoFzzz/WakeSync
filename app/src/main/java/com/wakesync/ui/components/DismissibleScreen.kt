@@ -60,14 +60,14 @@ fun DismissibleScreen(
     SwipeToDismissBox(
         state = dismissState,
         modifier = modifier,
-        backgroundScrimColor = WakeSyncColors.BlueBackground,
-        contentScrimColor = WakeSyncColors.BlueBackground
+        backgroundScrimColor = WakeSyncColors.NavyDeep,
+        contentScrimColor = WakeSyncColors.NavyDeep
     ) { isBackground ->
         if (isBackground) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(WakeSyncColors.BlueBackground)
+                    .background(WakeSyncColors.NavyDeep)
             )
         } else {
             content()

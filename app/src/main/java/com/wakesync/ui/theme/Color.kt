@@ -10,12 +10,9 @@ import androidx.compose.ui.graphics.Color
 object WakeSyncColors {
     // 1. Base palette (section 2.1/2.2)
     val NavyDeep = Color(0xFF1B2A45) // background / surface
-    val BlueCard = Color(0xFF1D4F7E) // cards, chips, buttons (lighter blue)
+    val BlueDeep = Color(0xFF164068) // surfaceContainer
     val CreamSoft = Color(0xFFF9E3CC) // onSurface
-    val BlueBackground = Color(0xFF164068) // screen background (deep royal blue)
     val RoseGold = Color(0xFFDAAA8D) // primary
-    val RoseGoldPastel = Color(0xFFEBCBB8) // soft pastel rose gold: progress arcs, status dots
-    val RoseGoldPastelTrack = Color(0xFF3F6A94) // arc track on BlueBackground
     val TanMuted = Color(0xFFC2AC98) // onSurfaceVariant
     val BronzeMuted = Color(0xFF8A6F5C) // outline
     val PureBlack = Color(0xFF000000) // ambient background only

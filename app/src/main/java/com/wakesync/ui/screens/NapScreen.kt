@@ -74,7 +74,7 @@ fun NapScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueBackground),
+            .background(if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.NavyDeep),
         contentAlignment = Alignment.Center
     ) {
         when (napState.phase) {
@@ -85,8 +85,8 @@ fun NapScreen(
                 if (!isAmbient) {
                     CircularProgressArc(
                         progress = calibrationProgress,
-                        color = WakeSyncColors.RoseGoldPastel,
-                        trackColor = WakeSyncColors.RoseGoldPastelTrack,
+                        color = WakeSyncColors.SteelBlue,
+                        trackColor = WakeSyncColors.SteelBlueMuted,
                         modifier = Modifier.size(WakeSyncSpacing.progressArcDiameter)
                     )
                 }
@@ -105,7 +105,7 @@ fun NapScreen(
                     Text(
                         text = stringResource(R.string.nap_calibrating_title),
                         style = WakeSyncTextStyles.Title,
-                        color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.RoseGold,
+                        color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.SteelBlue,
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
@@ -143,8 +143,8 @@ fun NapScreen(
                 if (!isAmbient) {
                     CircularProgressArc(
                         progress = score,
-                        color = WakeSyncColors.RoseGoldPastel,
-                        trackColor = WakeSyncColors.RoseGoldPastelTrack,
+                        color = WakeSyncColors.AmberSand,
+                        trackColor = WakeSyncColors.AmberSandMuted,
                         modifier = Modifier.size(WakeSyncSpacing.progressArcDiameter)
                     )
                 }
@@ -166,7 +166,7 @@ fun NapScreen(
                     Text(
                         text = stringResource(R.string.nap_monitoring_title),
                         style = WakeSyncTextStyles.Label,
-                        color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.RoseGold,
+                        color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.AmberSand,
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
@@ -193,7 +193,7 @@ fun NapScreen(
                     Text(
                         text = stringResource(R.string.nap_rest_score_format, score),
                         style = WakeSyncTextStyles.Label,
-                        color = WakeSyncColors.RoseGold
+                        color = WakeSyncColors.AmberSand
                     )
 
                     val currentHr = biometrics.currentHeartRate
@@ -211,7 +211,7 @@ fun NapScreen(
                         Text(
                             text = stringResource(R.string.nap_dest_distance_format, dist),
                             style = WakeSyncTextStyles.Label,
-                            color = WakeSyncColors.RoseGold
+                            color = WakeSyncColors.SteelBlue
                         )
                     }
 
@@ -234,8 +234,8 @@ fun NapScreen(
                 if (!isAmbient) {
                     CircularProgressArc(
                         progress = progress,
-                        color = WakeSyncColors.RoseGoldPastel,
-                        trackColor = WakeSyncColors.RoseGoldPastelTrack,
+                        color = WakeSyncColors.PlumLavender,
+                        trackColor = WakeSyncColors.PlumLavenderMuted,
                         modifier = Modifier.size(WakeSyncSpacing.progressArcDiameter)
                     )
                 }
@@ -254,7 +254,7 @@ fun NapScreen(
                     Text(
                         text = stringResource(R.string.nap_deep_rest_title),
                         style = WakeSyncTextStyles.Title,
-                        color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.RoseGold,
+                        color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.PlumLavender,
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
@@ -290,13 +290,35 @@ fun NapScreen(
         }
 
         if (!isAmbient) {
-            PrimaryBottomButton(
-                text = stringResource(R.string.btn_stop),
-                onClick = onStopSession,
+            Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = WakeSyncSpacing.primaryButtonBottomPadding)
-            )
+                    .padding(bottom = WakeSyncSpacing.primaryButtonBottomPadding),
+                horizontalArrangement = Arrangement.spacedBy(WakeSyncSpacing.sm),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (showRequestTransit) {
+                    SecondaryIconChip(
+                        icon = painterResource(R.drawable.ic_directions),
+                        contentDescription = stringResource(R.string.cd_start_transit),
+                        onClick = onRequestTransit
+                    )
+                }
+                PrimaryBottomButton(
+                    text = stringResource(R.string.btn_stop),
+                    onClick = onStopSession
+                )
+                if (showSimulate) {
+                    SecondaryIconChip(
+                        icon = painterResource(R.drawable.ic_fast_forward),
+                        contentDescription = stringResource(R.string.btn_simulate_nap),
+                        onClick = onSimulateNap
+                    )
+                } else if (showRequestTransit) {
+                    // Mirrors the directions chip so [Detener] stays centered on the round bezel.
+                    Spacer(modifier = Modifier.size(WakeSyncSpacing.minTouchTarget))
+                }
+            }
         }
     }
 }

@@ -38,7 +38,7 @@ fun CompactNotice(
     Row(
         modifier = modifier
             .clip(WakeSyncShapes.extraSmall)
-            .background(WakeSyncColors.BlueCard)
+            .background(WakeSyncColors.BlueDeep)
             .padding(horizontal = WakeSyncSpacing.sm, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

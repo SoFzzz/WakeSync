@@ -17,7 +17,7 @@ local.properties
 *.key
 
 # 4. Artefactos de Compilación de Android y Gradle
-
+*.apk
 *.aar
 *.ap_
 *.aab

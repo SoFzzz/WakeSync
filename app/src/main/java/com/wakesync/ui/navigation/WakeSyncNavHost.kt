@@ -94,7 +94,7 @@ private fun DestinationPickerFallback(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueBackground),
+            .background(WakeSyncColors.PureBlack),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -125,7 +125,7 @@ private fun DestinationPickerFallback(
                             minHeight = WakeSyncSpacing.minTouchTarget
                         ),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = WakeSyncColors.BlueCard,
+                            containerColor = WakeSyncColors.BlueDeep,
                             contentColor = WakeSyncColors.CreamSoft
                         ),
                         border = BorderStroke(WakeSyncSpacing.borderHairline, accentColor)
@@ -139,7 +139,7 @@ private fun DestinationPickerFallback(
                             minHeight = WakeSyncSpacing.minTouchTarget
                         ),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = WakeSyncColors.BlueCard,
+                            containerColor = WakeSyncColors.NavyDeep,
                             contentColor = WakeSyncColors.CreamSoft
                         )
                     ) {
@@ -286,13 +286,13 @@ fun WakeSyncNavHost(
 
                         DestinationPickerState.Loading -> {
                             Box(
-                                modifier = Modifier.fillMaxSize().background(WakeSyncColors.BlueBackground),
+                                modifier = Modifier.fillMaxSize().background(WakeSyncColors.PureBlack),
                                 contentAlignment = Alignment.Center
                             ) {
                                 CircularProgressArc(
                                     progress = 0.35f,
-                                    color = WakeSyncColors.RoseGoldPastel,
-                                    trackColor = WakeSyncColors.RoseGoldPastelTrack,
+                                    color = WakeSyncColors.SageTeal,
+                                    trackColor = WakeSyncColors.SageTealMuted,
                                     modifier = Modifier.size(60.dp)
                                 )
                             }

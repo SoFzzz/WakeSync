@@ -51,7 +51,7 @@ fun HistoryScreen(
     modifier: Modifier = Modifier
 ) {
     val isAmbient = LocalAmbientMode.current
-    val screenBackground = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueBackground
+    val screenBackground = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.NavyDeep
     val records = remember(history) { UiFormatters.historyNewestFirst(history) }
 
     BackHandler { onBack() }

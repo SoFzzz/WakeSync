@@ -32,7 +32,7 @@ import com.wakesync.ui.theme.WakeSyncTextStyles
 /**
  * Design system component 4.1 (`wear-design-system` SKILL.md): icon + title + one-line
  * subtitle action chip for compact lists (Inicio, Historial, Buscar Destino). Container
- * [WakeSyncColors.BlueCard] (`surfaceContainer`), radius 16dp, compact height — replaces
+ * [WakeSyncColors.BlueDeep] (`surfaceContainer`), radius 16dp, compact height — replaces
  * the ~110dp full-width cards previously used in HomeScreen.
  */
 @Composable
@@ -50,7 +50,7 @@ fun ActionChip(
         modifier = modifier.fillMaxWidth(),
         shape = WakeSyncShapes.small,
         colors = CardDefaults.cardColors(
-            containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueCard,
+            containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueDeep,
             contentColor = WakeSyncColors.CreamSoft
         ),
         border = if (isAmbient) CardDefaults.outlinedCardBorder() else null
@@ -89,7 +89,7 @@ fun ActionChip(
  * is the direct fix for the previous 48dp fully-filled settings button with an off-center
  * glyph.
  *
- * [containerColor]/[iconTint] default to the secondary look (BlueCard + CreamSoft); a dialog's
+ * [containerColor]/[iconTint] default to the secondary look (BlueDeep + CreamSoft); a dialog's
  * affirmative action (4.8, `check`) passes `primary`/`onPrimary` (RoseGold + NavyDeep, 6.91:1).
  * Ambient mode always overrides both with the outline-only look.
  */
@@ -99,7 +99,7 @@ fun SecondaryIconChip(
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    containerColor: Color = WakeSyncColors.BlueCard,
+    containerColor: Color = WakeSyncColors.BlueDeep,
     iconTint: Color = WakeSyncColors.CreamSoft
 ) {
     val isAmbient = LocalAmbientMode.current
