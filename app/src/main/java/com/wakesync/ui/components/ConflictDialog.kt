@@ -45,7 +45,7 @@ fun ConflictDialog(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(WakeSyncColors.NavyDeep)
+            .background(WakeSyncColors.BlueBackground)
             .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } },
         contentAlignment = Alignment.Center
     ) {

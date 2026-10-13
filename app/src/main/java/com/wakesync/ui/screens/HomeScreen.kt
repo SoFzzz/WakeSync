@@ -65,7 +65,7 @@ fun HomeScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.NavyDeep)
+            .background(if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueBackground)
     ) {
         ScalingLazyColumn(
             state = scrollState,
@@ -150,7 +150,7 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .height(30.dp)
                     .align(Alignment.TopCenter)
-                    .background(WakeSyncColors.NavyDeep)
+                    .background(WakeSyncColors.BlueBackground)
             )
             ResponsiveTimeText()
         }
