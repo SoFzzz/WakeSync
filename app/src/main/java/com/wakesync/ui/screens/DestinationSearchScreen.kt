@@ -2,7 +2,10 @@
 
 package com.wakesync.ui.screens
 
+import android.app.Activity
 import android.app.RemoteInput
+import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -14,6 +17,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,6 +29,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -53,6 +64,24 @@ private const val DEST_SEARCH_MIN_QUERY_CHARS = 3
 private const val REMOTE_INPUT_KEY = "wakesync_destination_query"
 
 /**
+ * Extracts the typed/dictated query from a RemoteInput activity result. Returns null when the
+ * user cancelled (`resultCode != RESULT_OK`) or the result carries no [data]: on Wear OS 6 a
+ * cancelled RemoteInput returns a null Intent, and `RemoteInput.getResultsFromIntent(null)`
+ * throws a NullPointerException. Generic over the intent type so it is testable without Android.
+ */
+internal fun <T : Any> resolveRemoteInputQuery(
+    resultCode: Int,
+    data: T?,
+    readText: (T) -> CharSequence?
+): String? {
+    if (resultCode != Activity.RESULT_OK || data == null) return null
+    return readText(data)?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+}
+
+private fun readRemoteInputText(data: Intent): CharSequence? =
+    RemoteInput.getResultsFromIntent(data)?.getCharSequence(REMOTE_INPUT_KEY)
+
+/**
  * Buscar Destino (CR-01, RF-PLC-01/02) — `wear-design-system` SKILL.md section 6.4.
  *
  * The title uses the noun ("Destino") and the action chips use the verb ("Buscar",
@@ -80,23 +109,22 @@ fun DestinationSearchScreen(
     val isAmbient = LocalAmbientMode.current
     val scrollState = rememberScalingLazyListState()
     var queryTooShort by remember { mutableStateOf(false) }
+    var isTyping by remember { mutableStateOf(false) }
+
+    val submitQuery: (String) -> Unit = { text ->
+        if (text.length < DEST_SEARCH_MIN_QUERY_CHARS) {
+            queryTooShort = true
+        } else {
+            queryTooShort = false
+            onSearch(text)
+        }
+    }
 
     val searchInputLabel = stringResource(R.string.dest_search_hint)
     val remoteInputLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val text = RemoteInput.getResultsFromIntent(result.data)
-            ?.getCharSequence(REMOTE_INPUT_KEY)
-            ?.toString()
-            ?.trim()
-        if (!text.isNullOrEmpty()) {
-            if (text.length < DEST_SEARCH_MIN_QUERY_CHARS) {
-                queryTooShort = true
-            } else {
-                queryTooShort = false
-                onSearch(text)
-            }
-        }
+        resolveRemoteInputQuery(result.resultCode, result.data, ::readRemoteInputText)?.let(submitQuery)
     }
 
     val onLaunchInput: () -> Unit = {
@@ -112,6 +140,18 @@ fun DestinationSearchScreen(
         if (state is DestinationPickerState.Results) {
             queryTooShort = false
         }
+    }
+
+    if (isTyping) {
+        InAppQueryField(
+            onSubmit = { text ->
+                isTyping = false
+                submitQuery(text.trim())
+            },
+            onCancel = { isTyping = false },
+            modifier = modifier
+        )
+        return
     }
 
     Box(
@@ -146,6 +186,17 @@ fun DestinationSearchScreen(
                         title = stringResource(R.string.btn_search),
                         subtitle = stringResource(R.string.dest_search_subtitle),
                         onClick = onLaunchInput,
+                        modifier = Modifier.padding(bottom = WakeSyncSpacing.xs)
+                    )
+                }
+
+                item {
+                    ActionChip(
+                        icon = painterResource(R.drawable.ic_search),
+                        iconContentDescription = stringResource(R.string.btn_type_in_app),
+                        title = stringResource(R.string.btn_type_in_app),
+                        subtitle = stringResource(R.string.dest_type_in_app_subtitle),
+                        onClick = { isTyping = true },
                         modifier = Modifier.padding(bottom = WakeSyncSpacing.xs)
                     )
                 }
@@ -198,6 +249,62 @@ fun DestinationSearchScreen(
             item {
                 Spacer(modifier = Modifier.height(WakeSyncSpacing.sm))
             }
+        }
+    }
+}
+
+/**
+ * Fallback text entry owned by the app, used when the system RemoteInput screen does not render
+ * (Samsung Wear OS 6 / Honeyboard shows a black screen, verified on a Galaxy Watch4). It is a
+ * plain text field that raises the system keyboard itself instead of delegating to another Activity.
+ */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@Composable
+private fun InAppQueryField(
+    onSubmit: (String) -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var text by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+
+    BackHandler { onCancel() }
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+        keyboard?.show()
+    }
+
+    Box(
+        modifier = modifier.fillMaxSize().background(WakeSyncColors.PureBlack),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = WakeSyncSpacing.safeInsetHorizontal),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = stringResource(R.string.dest_search_hint),
+                style = WakeSyncTextStyles.Label,
+                color = WakeSyncColors.TanMuted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = WakeSyncSpacing.sm)
+            )
+            BasicTextField(
+                value = text,
+                onValueChange = { text = it },
+                singleLine = true,
+                textStyle = WakeSyncTextStyles.Body.copy(color = WakeSyncColors.CreamSoft),
+                cursorBrush = SolidColor(WakeSyncColors.RoseGold),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSubmit(text) }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(WakeSyncShapes.extraSmall)
+                    .background(WakeSyncColors.BlueDeep)
+                    .padding(WakeSyncSpacing.md)
+                    .focusRequester(focusRequester)
+            )
         }
     }
 }

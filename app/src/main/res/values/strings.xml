@@ -102,6 +102,8 @@
     <string name="dest_search_hint">Escribe o dicta un destino</string>
     <string name="btn_search">Buscar</string>
     <string name="dest_search_subtitle">Voz o teclado</string>
+    <string name="btn_type_in_app">Escribir</string>
+    <string name="dest_type_in_app_subtitle">Teclado de la app</string>
     <string name="btn_choose_on_map">Elegir en Mapa</string>
     <string name="dest_choose_on_map_subtitle">Elige un punto en el mapa</string>
     <string name="dest_search_min_chars_hint">Escribe al menos 3 caracteres</string>
