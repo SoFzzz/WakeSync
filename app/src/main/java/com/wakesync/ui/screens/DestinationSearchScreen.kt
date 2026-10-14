@@ -157,7 +157,7 @@ fun DestinationSearchScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(WakeSyncColors.PureBlack),
+            .background(if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueBackground),
         contentAlignment = Alignment.Center
     ) {
         ScalingLazyColumn(
@@ -172,7 +172,7 @@ fun DestinationSearchScreen(
                 Text(
                     text = stringResource(R.string.title_dest_search),
                     style = WakeSyncTextStyles.Title,
-                    color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.SageTeal,
+                    color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.RoseGold,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(bottom = WakeSyncSpacing.sm)
                 )
@@ -301,7 +301,7 @@ private fun InAppQueryField(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(WakeSyncShapes.extraSmall)
-                    .background(WakeSyncColors.BlueDeep)
+                    .background(WakeSyncColors.BlueCard)
                     .padding(WakeSyncSpacing.md)
                     .focusRequester(focusRequester)
             )
@@ -318,7 +318,7 @@ private fun DestinationResultItem(prediction: PlacePrediction, onClick: () -> Un
         modifier = Modifier
             .fillMaxWidth()
             .clip(WakeSyncShapes.extraSmall)
-            .background(WakeSyncColors.BlueDeep)
+            .background(WakeSyncColors.BlueCard)
             .clickable(onClick = onClick)
             .padding(horizontal = WakeSyncSpacing.md, vertical = WakeSyncSpacing.sm)
             .padding(bottom = WakeSyncSpacing.xs),

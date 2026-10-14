@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,11 +31,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.wear.compose.material3.Button
-import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.Text
 import com.wakesync.R
 import com.wakesync.ui.ambient.LocalAmbientMode
+import com.wakesync.ui.components.PrimaryBottomButton
 import com.wakesync.ui.theme.WakeSyncColors
 import com.wakesync.ui.theme.WakeSyncSpacing
 import com.wakesync.ui.theme.WakeSyncTextStyles
@@ -53,6 +53,9 @@ private val MAP_IMAGE_SIZE_DP = 227.dp
  * image's corners are clipped by the round display, so the app draws the attribution itself.
  */
 private val BOTTOM_SAFE_ZONE_DP = 30.dp
+
+/** Size of the blue center pin; its tip marks the selected point. */
+private val PIN_SIZE_DP = 32.dp
 
 /** Bottom inset of the attribution line; at this height the 454x454 circle is still ~110dp wide. */
 private val ATTRIBUTION_BOTTOM_PADDING_DP = 9.dp
@@ -147,16 +150,20 @@ fun DestinationMapScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(WakeSyncColors.BlueDeep)
+                        .background(WakeSyncColors.BlueCard)
                 )
             }
         }
 
-        // Fixed center pin drawn by the app (RF-PLC-03).
-        Box(
+        // Fixed center pin drawn by the app (RF-PLC-03). Shifted up by half its height so the
+        // pin's tip, not its middle, sits on the exact map center that pinMapCenter() reads.
+        Icon(
+            painter = painterResource(R.drawable.ic_pin),
+            contentDescription = null,
+            tint = WakeSyncColors.BlueCard,
             modifier = Modifier
-                .size(14.dp)
-                .background(WakeSyncColors.SageTeal, CircleShape)
+                .size(PIN_SIZE_DP)
+                .offset(y = -PIN_SIZE_DP / 2)
         )
 
         // Required Mapbox logo (official black wordmark + icon, on a light backing), always visible.
@@ -189,19 +196,13 @@ fun DestinationMapScreen(
         )
 
         if (!isAmbient) {
-            Button(
+            PrimaryBottomButton(
+                text = stringResource(R.string.btn_pin_destination),
                 onClick = onPinCenter,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = BOTTOM_SAFE_ZONE_DP)
-                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = WakeSyncColors.SageTealMuted,
-                    contentColor = WakeSyncColors.SageTeal
-                )
-            ) {
-                Text(text = stringResource(R.string.btn_pin_destination), style = WakeSyncTextStyles.Label)
-            }
+            )
         }
     }
 }

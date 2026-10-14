@@ -37,7 +37,7 @@ import com.wakesync.ui.theme.WakeSyncTextStyles
  * Design system component 4.9 (`wear-design-system` SKILL.md): one Historial row. Session-type
  * icon on the left; three lines: `Body` "Siesta · 26/09" (type + date), `Label` "21:57 · 18:32"
  * (start time + duration) and `Label` "Completada" (outcome) — the text column is only ~143dp wide
- * on a 227dp round screen, so time + duration + outcome never fit on one line. A SageTeal dot on the
+ * on a 227dp round screen, so time + duration + outcome never fit on one line. A pastel rose-gold dot on the
  * right marks a record that already has a saved insight. Radius 12dp (`extraSmall`), min height
  * 48dp, whole row clickable.
  */
@@ -57,7 +57,7 @@ fun HistoryRow(
             .heightIn(min = WakeSyncSpacing.minTouchTarget),
         shape = WakeSyncShapes.extraSmall,
         colors = CardDefaults.cardColors(
-            containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueDeep,
+            containerColor = if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueCard,
             contentColor = WakeSyncColors.CreamSoft
         ),
         border = if (isAmbient) CardDefaults.outlinedCardBorder() else null,
@@ -106,7 +106,7 @@ fun HistoryRow(
                     modifier = Modifier
                         .size(WakeSyncSpacing.statusDot)
                         .clip(CircleShape)
-                        .background(WakeSyncColors.SageTeal)
+                        .background(WakeSyncColors.RoseGoldPastel)
                         .semantics { contentDescription = hasInsightDescription }
                 )
             }

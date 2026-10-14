@@ -55,7 +55,7 @@ fun ConfirmDestinationScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(WakeSyncColors.PureBlack),
+            .background(if (isAmbient) WakeSyncColors.PureBlack else WakeSyncColors.BlueBackground),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -68,7 +68,7 @@ fun ConfirmDestinationScreen(
             Text(
                 text = stringResource(R.string.title_dest_confirm),
                 style = WakeSyncTextStyles.Label,
-                color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.SageTeal,
+                color = if (isAmbient) WakeSyncColors.TanMuted else WakeSyncColors.RoseGold,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
@@ -96,7 +96,7 @@ fun ConfirmDestinationScreen(
                 Text(
                     text = stringResource(R.string.dest_confirm_distance_format, distanceText),
                     style = WakeSyncTextStyles.Label,
-                    color = WakeSyncColors.SageTeal,
+                    color = WakeSyncColors.RoseGold,
                     textAlign = TextAlign.Center
                 )
             }

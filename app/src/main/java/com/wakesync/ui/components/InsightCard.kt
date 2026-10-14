@@ -54,7 +54,7 @@ fun InsightCard(
                     Modifier
                 }
             )
-            .background(WakeSyncColors.BlueDeep)
+            .background(WakeSyncColors.BlueCard)
             .padding(WakeSyncSpacing.md),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -62,8 +62,8 @@ fun InsightCard(
             InsightState.Idle, InsightState.Loading -> {
                 CircularProgressArc(
                     progress = 0.35f,
-                    color = WakeSyncColors.CreamSoft,
-                    trackColor = WakeSyncColors.NavyDeep,
+                    color = WakeSyncColors.RoseGoldPastel,
+                    trackColor = WakeSyncColors.RoseGoldPastelTrack,
                     modifier = Modifier.size(WakeSyncSpacing.progressSmall),
                     strokeWidth = WakeSyncSpacing.progressSmallStroke
                 )
@@ -86,7 +86,7 @@ fun InsightCard(
             }
 
             is InsightState.Unavailable -> {
-                // SlateMist measures only ~3.67:1 on this card's BlueDeep fill — under the 4.5:1
+                // SlateMist measures only ~3.67:1 on this card's BlueCard fill — under the 4.5:1
                 // floor for Label-sized text — so it's confined to borders: the message and the
                 // retry label both stay on CreamSoft/onSurface (8.58:1), same as the Ready branch.
                 val messageRes = when (insightState.reason) {
@@ -100,7 +100,7 @@ fun InsightCard(
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(WakeSyncSpacing.sm))
-                // Same fill as the card, so the SlateMist border (3.67:1 against BlueDeep, above
+                // Same fill as the card, so the SlateMist border (3.67:1 against BlueCard, above
                 // the 3:1 non-text floor) is what outlines the button — a SlateMistMuted fill was
                 // only 1.21:1 against the card and the button didn't read as a button.
                 Button(
@@ -110,7 +110,7 @@ fun InsightCard(
                         minHeight = WakeSyncSpacing.minTouchTarget
                     ),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = WakeSyncColors.BlueDeep,
+                        containerColor = WakeSyncColors.BlueCard,
                         contentColor = WakeSyncColors.CreamSoft
                     ),
                     border = BorderStroke(WakeSyncSpacing.borderHairline, WakeSyncColors.SlateMist)
@@ -133,7 +133,7 @@ fun NoInsightCard(modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .clip(WakeSyncShapes.small)
-            .background(WakeSyncColors.BlueDeep)
+            .background(WakeSyncColors.BlueCard)
             .padding(WakeSyncSpacing.md),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
