@@ -13,13 +13,18 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.layout.ContentScale
@@ -95,6 +100,11 @@ fun DestinationMapScreen(
     val isAmbient = LocalAmbientMode.current
     val focusRequester = remember { FocusRequester() }
 
+    // Immediate visual feedback while dragging: the bitmap follows the finger until the backend
+    // returns the image for the new center (debounce + network), at which point the offset resets.
+    var dragOffset by remember { mutableStateOf(Offset.Zero) }
+    LaunchedEffect(image) { dragOffset = Offset.Zero }
+
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
     }
@@ -114,6 +124,7 @@ fun DestinationMapScreen(
             .pointerInput(Unit) {
                 detectDragGestures { change, dragAmount ->
                     change.consume()
+                    dragOffset += dragAmount
                     onPan(dragAmount.x, dragAmount.y)
                 }
             },
@@ -125,7 +136,12 @@ fun DestinationMapScreen(
                     bitmap = image,
                     contentDescription = null,
                     contentScale = ContentScale.None,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            translationX = dragOffset.x
+                            translationY = dragOffset.y
+                        }
                 )
             } else {
                 Box(

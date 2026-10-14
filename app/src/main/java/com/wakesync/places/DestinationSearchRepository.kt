@@ -8,6 +8,7 @@ import com.wakesync.core.places.DestinationPickerState
 import com.wakesync.core.places.DestinationSearchContract
 import com.wakesync.network.ApiResult
 import com.wakesync.network.BackendClient
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Locale
 import java.util.UUID
 import kotlin.math.round
@@ -28,7 +30,9 @@ import kotlin.math.round
 class DestinationSearchRepository(
     private val backendClient: BackendClient,
     private val currentLocationProvider: () -> GeoPoint? = { null },
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main.immediate)
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.Main.immediate),
+    /** Dispatcher for PNG decoding, so a 454x454 bitmap never blocks the main thread. */
+    private val decodeDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) : DestinationSearchContract {
 
     companion object {
@@ -36,7 +40,7 @@ class DestinationSearchRepository(
         const val MAP_DEFAULT_ZOOM = 16
         const val MAP_MIN_ZOOM = 10
         const val MAP_MAX_ZOOM = 19
-        const val MAP_PAN_DEBOUNCE_MS = 400L
+        const val MAP_PAN_DEBOUNCE_MS = 250L
         const val MAP_REQUEST_SIZE_PX = 227 // 454 / 2 = 227 logical px (scale=2)
         val DEFAULT_FALLBACK_CENTER = GeoPoint(6.2518, -75.5684, "Campus UCC")
     }
@@ -230,8 +234,9 @@ class DestinationSearchRepository(
 
             when (val result = backendClient.getStaticMap(center.latitude, center.longitude, zoom, MAP_REQUEST_SIZE_PX)) {
                 is ApiResult.Success -> {
-                    val bitmap = BitmapFactory.decodeByteArray(result.data, 0, result.data.size)
-                    val imageBitmap = bitmap?.asImageBitmap()
+                    val imageBitmap = withContext(decodeDispatcher) {
+                        BitmapFactory.decodeByteArray(result.data, 0, result.data.size)?.asImageBitmap()
+                    }
 
                     val current = _state.value
                     if (current is DestinationPickerState.Map && current.center == center && current.zoom == zoom) {

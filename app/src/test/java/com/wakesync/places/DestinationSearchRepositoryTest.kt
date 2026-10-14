@@ -75,7 +75,8 @@ class DestinationSearchRepositoryTest {
         repository = DestinationSearchRepository(
             backendClient = fakeBackendClient,
             currentLocationProvider = { userLocation },
-            scope = testScope
+            scope = testScope,
+            decodeDispatcher = testDispatcher
         )
     }
 
@@ -178,7 +179,7 @@ class DestinationSearchRepositoryTest {
     }
 
     @Test
-    fun `panMap debounces 400ms before requesting static map`() = testScope.runTest {
+    fun `panMap debounces 250ms before requesting static map`() = testScope.runTest {
         val dummyPng = byteArrayOf(137.toByte(), 80, 78, 71)
         fakeBackendClient.staticMapResult = ApiResult.Success(dummyPng)
 
@@ -190,11 +191,11 @@ class DestinationSearchRepositoryTest {
         val intermediateState = repository.state.value as DestinationPickerState.Map
         assertTrue(intermediateState.center.longitude < userLocation.longitude)
 
-        // Advance 200ms (should not trigger static map yet)
-        advanceTimeBy(200)
+        // Advance 100ms (should not trigger static map yet)
+        advanceTimeBy(100)
 
-        // Advance remaining 250ms (crosses 400ms debounce threshold)
-        advanceTimeBy(250)
+        // Advance remaining 200ms (crosses 250ms debounce threshold)
+        advanceTimeBy(200)
         advanceUntilIdle()
     }
 
