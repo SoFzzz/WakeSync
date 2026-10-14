@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.dropWhile
@@ -30,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Coordinator for Nap (MicroNap) operating mode (RF-NAP-01 through RF-NAP-06).
  *
  * Lifecycle:
- * 1. Basal calibration (20s) -> computes baseline HR.
+ * 1. Basal calibration (20s, extended up to 60s while real PPG has not produced data) -> computes baseline HR.
  * 2. Continuous monitoring -> evaluates RestEvaluationResult until DEEP_REST is confirmed (2x >= 0.60).
  * 3. 15-minute countdown -> decrements remainingNapSeconds once DEEP_REST is confirmed.
  * 4. Safety timeout (25 min) -> fires SOFT alert if DEEP_REST is not reached within 25 min.
@@ -52,6 +53,15 @@ class NapManager(
         private const val TAG = "NapManager"
 
         const val CALIBRATION_DURATION_SECONDS: Int = 20
+
+        /** Real PPG can take longer than 20 s for its first reading; wait for data up to this cap. */
+        const val CALIBRATION_MAX_WAIT_SECONDS: Int = 60
+
+        /** Minimum span of real HR data (from the first valid reading) before HR_base is computed. */
+        const val CALIBRATION_MIN_DATA_SECONDS: Int = 10
+
+        /** Valid readings averaged for a late HR_base (calibration cap reached with no data). */
+        const val LATE_BASELINE_SAMPLE_COUNT: Int = 5
         const val NAP_COUNTDOWN_SECONDS: Int = 15 * 60 // 15 minutes (900s)
         const val SAFETY_TIMEOUT_SECONDS: Int = 25 * 60 // 25 minutes (1500s)
         const val ABSOLUTE_SESSION_CAP_MS: Long = 40 * 60 * 1000L // 40 minutes
@@ -66,6 +76,7 @@ class NapManager(
     private var locationTrackingJob: Job? = null
     internal var absoluteCapJob: Job? = null
     private var dismissalCollectorJob: Job? = null
+    private var lateBaselineJob: Job? = null
     private val isTerminating = AtomicBoolean(false)
 
     /**
@@ -154,20 +165,24 @@ class NapManager(
     private suspend fun CoroutineScope.runNapLifecycle() {
         // --- PHASE 1: Calibrating (20s) ---
         sessionManager.updateNapProgress(NapPhase.CALIBRATING, elapsedSeconds, remainingNapSeconds, restLatencySeconds)
-        val calibrationSamples = mutableListOf<Int>()
+        val calibrationSamples = java.util.Collections.synchronizedList(mutableListOf<Int>())
+        val firstSampleSecond = java.util.concurrent.atomic.AtomicInteger(-1)
+        var calSeconds = 0
 
         val hrCollectorJob = heartRateFlow?.let { flow ->
             launch {
                 flow.collect { bpm ->
                     if (bpm in HR_MIN_VALID..HR_MAX_VALID) {
+                        firstSampleSecond.compareAndSet(-1, calSeconds)
                         calibrationSamples.add(bpm)
                     }
                 }
             }
         }
 
-        var calSeconds = 0
-        while (calSeconds < CALIBRATION_DURATION_SECONDS && isActive && !isTerminating.get()) {
+        // Wait at least CALIBRATION_DURATION_SECONDS, and until CALIBRATION_MIN_DATA_SECONDS of real
+        // data exist, but never longer than CALIBRATION_MAX_WAIT_SECONDS (slow PPG warm-up, F18).
+        while (!isCalibrationComplete(calSeconds, firstSampleSecond.get()) && isActive && !isTerminating.get()) {
             delay(1000L)
             calSeconds++
             elapsedSeconds++
@@ -181,6 +196,7 @@ class NapManager(
             calibrationSamples.average().toInt()
         } else {
             Log.w(TAG, "Calibration produced 0 valid HR readings; applying defensive fallback: $DEFENSIVE_FALLBACK_HR_BPM BPM")
+            startLateBaselineCollector()
             DEFENSIVE_FALLBACK_HR_BPM
         }
         baseHeartRate = calibratedHr
@@ -243,6 +259,39 @@ class NapManager(
             currentNapPhase = NapPhase.ALERTING
             sessionManager.updateNapProgress(NapPhase.ALERTING, elapsedSeconds, remainingNapSeconds, restLatencySeconds)
             handle15MinExpiration()
+        }
+    }
+
+    /**
+     * Pure completion rule for the calibration window: [calSeconds] elapsed, [firstSampleSecond] is
+     * the second of the first valid reading (-1 if none yet).
+     */
+    internal fun isCalibrationComplete(calSeconds: Int, firstSampleSecond: Int): Boolean {
+        if (calSeconds >= CALIBRATION_MAX_WAIT_SECONDS) return true
+        if (calSeconds < CALIBRATION_DURATION_SECONDS || firstSampleSecond < 0) return false
+        return calSeconds - firstSampleSecond >= CALIBRATION_MIN_DATA_SECONDS
+    }
+
+    /**
+     * Calibration ended with no data (PPG never produced a reading): keep listening during
+     * MONITORING and, once [LATE_BASELINE_SAMPLE_COUNT] valid readings arrive, deliver the late
+     * HR_base so the estimator leaves SENSOR_UNAVAILABLE instead of staying blind all session.
+     */
+    private fun startLateBaselineCollector() {
+        val flow = heartRateFlow ?: return
+        lateBaselineJob?.cancel()
+        lateBaselineJob = scope.launch {
+            val late = mutableListOf<Int>()
+            flow.collect { bpm ->
+                if (bpm in HR_MIN_VALID..HR_MAX_VALID) late.add(bpm)
+                if (late.size >= LATE_BASELINE_SAMPLE_COUNT) {
+                    val base = late.average().toInt()
+                    baseHeartRate = base
+                    onBaseHeartRateCalibrated(base)
+                    Log.i(TAG, "Late HR_base delivered after the calibration window")
+                    cancel()
+                }
+            }
         }
     }
 
@@ -323,6 +372,8 @@ class NapManager(
         absoluteCapJob = null
         dismissalCollectorJob?.cancel()
         dismissalCollectorJob = null
+        lateBaselineJob?.cancel()
+        lateBaselineJob = null
         resolveAlertController()?.cancelAlert()
         terminateSession(SessionOutcome.CANCELLED, stopActiveAlert = true)
     }
@@ -343,6 +394,8 @@ class NapManager(
             absoluteCapJob = null
             dismissalCollectorJob?.cancel()
             dismissalCollectorJob = null
+            lateBaselineJob?.cancel()
+            lateBaselineJob = null
             val owned = ownedSessionStartTimestamp
             if (owned != null) {
                 sessionManager.endSession(outcome, stopActiveAlert = stopActiveAlert, expectedStartTimestamp = owned)

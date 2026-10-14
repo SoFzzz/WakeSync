@@ -101,7 +101,11 @@ class RealSensorSource(
         val callback = object : MeasureCallback {
             override fun onAvailabilityChanged(dataType: DeltaDataType<*, *>, availability: Availability) {
                 if (dataType == DataType.HEART_RATE_BPM) {
-                    val hasContact = availability == DataTypeAvailability.AVAILABLE
+                    // ACQUIRING is the PPG warm-up (observed on a Galaxy Watch4: stays ACQUIRING for
+                    // tens of seconds before the first reading) — not a loss of skin contact, so it
+                    // must not gate readings. Only UNAVAILABLE / OFF_BODY states do.
+                    val hasContact = availability == DataTypeAvailability.AVAILABLE ||
+                        availability == DataTypeAvailability.ACQUIRING
                     _isSkinContactPresent.value = hasContact
                     if (!hasContact) {
                         Log.w(TAG, "PPG skin contact lost or sensor unavailable: $availability")

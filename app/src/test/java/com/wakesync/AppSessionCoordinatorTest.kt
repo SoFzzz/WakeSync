@@ -51,11 +51,22 @@ class AppSessionCoordinatorTest {
     )
 
     @Test
-    fun `Transit session with fresh HR and no HR_base never shows CALIBRATING`() {
+    fun `Transit session with fresh HR and no HR_base is AWAKE, never CALIBRATING or unavailable`() {
         // (a) F8: Transit never calibrates, so the engine has no basal HR the whole trip —
         // isCalibrating is true from the engine's point of view, but there's no Nap phase to gate it.
         val restState = AppSessionCoordinator.resolveRestState(
             result = invalidCalibratingResult(),
+            sessionType = SessionType.TRANSIT,
+            napPhase = NapPhase.IDLE
+        )
+
+        assertEquals(RestState.AWAKE, restState)
+    }
+
+    @Test
+    fun `Transit session with no HR readings at all is SENSOR_UNAVAILABLE`() {
+        val restState = AppSessionCoordinator.resolveRestState(
+            result = invalidNonCalibratingResult(),
             sessionType = SessionType.TRANSIT,
             napPhase = NapPhase.IDLE
         )
@@ -90,16 +101,16 @@ class AppSessionCoordinatorTest {
     }
 
     @Test
-    fun `a genuinely unavailable sensor during Nap CALIBRATING is still SENSOR_UNAVAILABLE`() {
-        // isCalibrating=false means the engine itself saw no fresh HR at all (off-wrist, etc.) —
-        // being in the CALIBRATING phase must not override that.
+    fun `no HR yet during Nap CALIBRATING shows CALIBRATING while PPG warms up`() {
+        // isCalibrating=false means no fresh HR yet (real PPG warm-up can take tens of seconds);
+        // within the CALIBRATING phase that is "calibrating", not an unavailable sensor.
         val restState = AppSessionCoordinator.resolveRestState(
             result = invalidNonCalibratingResult(),
             sessionType = SessionType.NAP,
             napPhase = NapPhase.CALIBRATING
         )
 
-        assertEquals(RestState.SENSOR_UNAVAILABLE, restState)
+        assertEquals(RestState.CALIBRATING, restState)
     }
 
     @Test
@@ -166,7 +177,7 @@ class AppSessionCoordinatorTest {
     }
 
     @Test
-    fun `once evaluated, a down sensor during Nap CALIBRATING still shows SENSOR_UNAVAILABLE`() {
+    fun `once evaluated, a down sensor during Nap CALIBRATING still shows CALIBRATING`() {
         val evaluatedSensorDown = RestEvaluationResult(
             score = 0.0f,
             state = RestState.AWAKE,
@@ -182,7 +193,7 @@ class AppSessionCoordinatorTest {
             napPhase = NapPhase.CALIBRATING
         )
 
-        assertEquals(RestState.SENSOR_UNAVAILABLE, restState)
+        assertEquals(RestState.CALIBRATING, restState)
     }
 
     // F26: ⚡ ("start descent") gate — released only by ⚡ AND the end of calibration, any order.

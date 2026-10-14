@@ -98,8 +98,8 @@ class WakeSyncFullIntegrationTest {
         assertNotNull("absoluteCapJob must run in parallel from session start", napManager.absoluteCapJob)
         assertTrue("absoluteCapJob must be active", napManager.absoluteCapJob?.isActive == true)
 
-        // Advance 20 seconds calibration
-        advanceTimeBy(21_000L)
+        // No HR is flowing yet (the mock only starts below), so calibration waits its 60 s cap
+        advanceTimeBy(61_000L)
         runCurrent()
         assertEquals(NapPhase.MONITORING, sessionManager.state.value.napState.phase)
 
@@ -159,7 +159,7 @@ class WakeSyncFullIntegrationTest {
         )
 
         napManager.startSession(campusUcc)
-        advanceTimeBy(21_000L) // Calibration
+        advanceTimeBy(61_000L) // Calibration (empty HR flow: waits the 60 s cap)
         runCurrent()
 
         // Confirm DEEP_REST

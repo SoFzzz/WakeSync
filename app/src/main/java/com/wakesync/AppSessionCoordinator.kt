@@ -84,6 +84,13 @@ class AppSessionCoordinator(
          * `SENSOR_UNAVAILABLE` instead of getting stuck showing "Calibrando" forever. Pure and
          * side-effect-free so it can be unit tested without a Context.
          *
+         * Transit has no basal HR by design (F8), so fresh HR without HR_base there is simply AWAKE
+         * (not SENSOR_UNAVAILABLE); only an actual absence of readings shows the notice.
+         *
+         * While a Nap is in its CALIBRATING phase the notice is never shown: until the first valid
+         * reading (up to 60 s of PPG warm-up) the honest state is "calibrating", and NapManager
+         * ends that phase itself, after which a still-missing sensor does show the notice.
+         *
          * Before the engine's first evaluation of a session ([RestEvaluationResult.isInitial]) a
          * Nap in CALIBRATING also shows `CALIBRATING` instead of flashing "sensor unavailable";
          * once the engine has evaluated, a genuinely unavailable sensor still shows the notice.
@@ -96,7 +103,8 @@ class AppSessionCoordinator(
             val isNapCalibrating = sessionType == SessionType.NAP && napPhase == NapPhase.CALIBRATING
             return when {
                 result.isDataValid -> result.state
-                (result.isCalibrating || result.isInitial) && isNapCalibrating -> RestState.CALIBRATING
+                isNapCalibrating -> RestState.CALIBRATING
+                sessionType == SessionType.TRANSIT && result.isCalibrating -> RestState.AWAKE
                 else -> RestState.SENSOR_UNAVAILABLE
             }
         }

@@ -51,6 +51,9 @@ class NapManagerTest {
 
         restEvaluationFlow = MutableSharedFlow(replay = 1)
         heartRateFlow = MutableSharedFlow(replay = 1)
+        // A healthy PPG delivers a reading right at session start; tests of the no-data / slow-PPG
+        // paths clear this cached reading explicitly.
+        heartRateFlow.tryEmit(70)
         locationFlow = MutableSharedFlow(replay = 1)
 
         napManager = NapManager(
@@ -64,12 +67,17 @@ class NapManagerTest {
     }
 
     @Test
-    fun `calibration completes in 20s and applies defensive fallback when no readings captured`() = testScope.runTest {
+    fun `calibration gives up at 60s and applies defensive fallback when no readings captured`() = testScope.runTest {
+        heartRateFlow.resetReplayCache()
         napManager.startSession()
         assertEquals(NapPhase.CALIBRATING, sessionManager.state.value.napState.phase)
 
-        // Advance 20 seconds of calibration without emitting HR
+        // 20 s without HR is no longer enough: the manager keeps waiting for the PPG
         advanceTimeBy(21_000L)
+        runCurrent()
+        assertEquals(NapPhase.CALIBRATING, sessionManager.state.value.napState.phase)
+
+        advanceTimeBy(40_000L)
         runCurrent()
 
         // Phase transits to MONITORING with 70 BPM fallback
@@ -423,6 +431,7 @@ class NapManagerTest {
             onBaseHeartRateCalibrated = { calibrated.add(it) }
         )
 
+        heartRateFlow.resetReplayCache()
         wiredNapManager.startSession()
         heartRateFlow.emit(80)
         advanceTimeBy(5_000L)
@@ -433,6 +442,71 @@ class NapManagerTest {
         assertEquals(NapPhase.MONITORING, sessionManager.state.value.napState.phase)
         assertEquals(listOf(85), calibrated)
         wiredNapManager.stopSession()
+    }
+
+    @Test
+    fun `calibration waits past 20s for slow PPG and uses real readings once 10s of data exist`() = testScope.runTest {
+        val calibrated = mutableListOf<Int>()
+        val wired = NapManager(
+            sessionManager = sessionManager,
+            restEvaluationFlow = restEvaluationFlow,
+            heartRateFlow = heartRateFlow,
+            alertController = mockAlertController,
+            scope = testScope,
+            onBaseHeartRateCalibrated = { calibrated.add(it) }
+        )
+
+        heartRateFlow.resetReplayCache()
+        wired.startSession()
+        advanceTimeBy(30_000L) // first reading only arrives at 30 s
+        heartRateFlow.emit(60)
+        advanceTimeBy(5_000L)
+        runCurrent()
+        assertEquals(NapPhase.CALIBRATING, sessionManager.state.value.napState.phase)
+
+        advanceTimeBy(6_000L) // 10 s of data after the first reading
+        runCurrent()
+        assertEquals(NapPhase.MONITORING, sessionManager.state.value.napState.phase)
+        assertEquals(listOf(60), calibrated)
+        wired.stopSession()
+    }
+
+    @Test
+    fun `calibration gives up at 60s without data and delivers a late HR_base when readings arrive`() = testScope.runTest {
+        val calibrated = mutableListOf<Int>()
+        val wired = NapManager(
+            sessionManager = sessionManager,
+            restEvaluationFlow = restEvaluationFlow,
+            heartRateFlow = heartRateFlow,
+            alertController = mockAlertController,
+            scope = testScope,
+            onBaseHeartRateCalibrated = { calibrated.add(it) }
+        )
+
+        heartRateFlow.resetReplayCache()
+        wired.startSession()
+        advanceTimeBy(59_000L)
+        runCurrent()
+        assertEquals(NapPhase.CALIBRATING, sessionManager.state.value.napState.phase)
+
+        advanceTimeBy(2_000L)
+        runCurrent()
+        assertEquals(NapPhase.MONITORING, sessionManager.state.value.napState.phase)
+        assertTrue(calibrated.isEmpty())
+
+        repeat(NapManager.LATE_BASELINE_SAMPLE_COUNT) { heartRateFlow.emit(70 + it) }
+        runCurrent()
+        assertEquals(listOf(72), calibrated)
+        wired.stopSession()
+    }
+
+    @Test
+    fun `isCalibrationComplete rules`() {
+        assertFalse(napManager.isCalibrationComplete(20, -1))
+        assertFalse(napManager.isCalibrationComplete(25, 20))
+        assertTrue(napManager.isCalibrationComplete(30, 20))
+        assertTrue(napManager.isCalibrationComplete(20, 0))
+        assertTrue(napManager.isCalibrationComplete(60, -1))
     }
 
     @Test
@@ -447,7 +521,7 @@ class NapManagerTest {
         )
 
         wiredNapManager.startSession()
-        advanceTimeBy(21_000L)
+        advanceTimeBy(61_000L)
         runCurrent()
 
         // Phase still advances with the internal 70 BPM fallback, but the estimator never receives it
