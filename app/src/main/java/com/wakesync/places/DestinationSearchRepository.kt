@@ -42,7 +42,8 @@ class DestinationSearchRepository(
         const val MAP_MAX_ZOOM = 19
         const val MAP_PAN_DEBOUNCE_MS = 250L
         const val MAP_REQUEST_SIZE_PX = 227 // 454 / 2 = 227 logical px (scale=2)
-        val DEFAULT_FALLBACK_CENTER = GeoPoint(6.2518, -75.5684, "Campus UCC")
+        /** Default map center and search bias when no location is available: Pasto, Nariño (Plaza de Nariño). */
+        val DEFAULT_FALLBACK_CENTER = GeoPoint(1.2140, -77.2785, "Pasto")
     }
 
     private val _state = MutableStateFlow<DestinationPickerState>(DestinationPickerState.Idle)
@@ -65,10 +66,11 @@ class DestinationSearchRepository(
         _state.value = DestinationPickerState.Loading
 
         scope.launch {
-            // Apply location bias rounded to 2 decimals for privacy (RNF-PLC-02)
-            val currentLoc = currentLocationProvider()
-            val biasLat = currentLoc?.let { round(it.latitude * 100.0) / 100.0 }
-            val biasLng = currentLoc?.let { round(it.longitude * 100.0) / 100.0 }
+            // Apply location bias rounded to 2 decimals for privacy (RNF-PLC-02);
+            // without a current location, bias results towards the default center (Pasto).
+            val biasPoint = currentLocationProvider() ?: DEFAULT_FALLBACK_CENTER
+            val biasLat = round(biasPoint.latitude * 100.0) / 100.0
+            val biasLng = round(biasPoint.longitude * 100.0) / 100.0
 
             when (val result = backendClient.autocomplete(trimmed, sessionToken, biasLat, biasLng)) {
                 is ApiResult.Success -> {

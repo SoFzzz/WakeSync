@@ -39,13 +39,19 @@ class DestinationSearchRepositoryTest {
         var staticMapResult: ApiResult<ByteArray> = ApiResult.Success(byteArrayOf(1, 2, 3))
         var lastStaticMapLat: Double? = null
         var lastStaticMapLng: Double? = null
+        var lastBiasLat: Double? = null
+        var lastBiasLng: Double? = null
 
         override suspend fun autocomplete(
             query: String,
             sessionToken: String,
             biasLat: Double?,
             biasLng: Double?
-        ): ApiResult<List<PlacePrediction>> = autocompleteResult
+        ): ApiResult<List<PlacePrediction>> {
+            lastBiasLat = biasLat
+            lastBiasLng = biasLng
+            return autocompleteResult
+        }
 
         override suspend fun getPlaceDetails(
             placeId: String,
@@ -163,6 +169,49 @@ class DestinationSearchRepositoryTest {
         assertEquals(-75.57, state.center.longitude, 0.0)
         assertEquals(6.25, fakeBackendClient.lastStaticMapLat)
         assertEquals(-75.57, fakeBackendClient.lastStaticMapLng)
+    }
+
+    @Test
+    fun `search without current location biases towards Pasto rounded to 2 decimals`() = testScope.runTest {
+        val noLocationRepository = DestinationSearchRepository(
+            backendClient = fakeBackendClient,
+            currentLocationProvider = { null },
+            scope = testScope
+        )
+
+        noLocationRepository.search("parque")
+        advanceUntilIdle()
+
+        assertEquals(1.21, fakeBackendClient.lastBiasLat)
+        assertEquals(-77.28, fakeBackendClient.lastBiasLng)
+    }
+
+    @Test
+    fun `search with current location biases towards it rounded to 2 decimals`() = testScope.runTest {
+        repository.search("parque")
+        advanceUntilIdle()
+
+        assertEquals(6.25, fakeBackendClient.lastBiasLat)
+        assertEquals(-75.57, fakeBackendClient.lastBiasLng)
+    }
+
+    @Test
+    fun `openMap without location falls back to Pasto`() = testScope.runTest {
+        val noLocationRepository = DestinationSearchRepository(
+            backendClient = fakeBackendClient,
+            currentLocationProvider = { null },
+            scope = testScope
+        )
+        fakeBackendClient.staticMapResult = ApiResult.Success(byteArrayOf(137.toByte(), 80, 78, 71))
+
+        noLocationRepository.openMap(null)
+        advanceUntilIdle()
+
+        val state = noLocationRepository.state.value
+        assertTrue(state is DestinationPickerState.Map)
+        assertEquals(DestinationSearchRepository.DEFAULT_FALLBACK_CENTER, (state as DestinationPickerState.Map).center)
+        assertEquals(1.2140, fakeBackendClient.lastStaticMapLat)
+        assertEquals(-77.2785, fakeBackendClient.lastStaticMapLng)
     }
 
     @Test
