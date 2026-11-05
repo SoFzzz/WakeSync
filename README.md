@@ -50,6 +50,91 @@ Una vez fijado el destino, el seguimiento y la alerta funcionan **sin conexión 
 
 ---
 
+## Recorrido por la app
+
+Capturas tomadas en el emulador **Wear OS Large Round** (454 × 454 px), con el Modo Simulación activo.
+
+### Inicio y ajustes
+
+La pantalla de inicio reúne los tres modos de sesión, el historial y los ajustes. Desde *Ajustes* se
+revisan los permisos, se activa el Modo Simulación y se puede borrar el historial (con confirmación).
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/01_home.png" width="200"><br><sub>Inicio: Siesta y Siesta con Destino</sub></td>
+    <td align="center"><img src="docs/screenshots/02_home_scrolled.png" width="200"><br><sub>Inicio: Historial y Ajustes</sub></td>
+    <td align="center"><img src="docs/screenshots/03_settings.png" width="200"><br><sub>Ajustes: permisos y Modo Simulación</sub></td>
+    <td align="center"><img src="docs/screenshots/04_settings_clear_confirm.png" width="200"><br><sub>Confirmación para borrar el historial</sub></td>
+  </tr>
+</table>
+
+### Elegir el destino
+
+El destino se busca por voz o teclado, o se marca directamente en un mapa de Mapbox. Antes de iniciar
+la sesión, WakeSync muestra la dirección y la distancia en línea recta para confirmar.
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/05_dest_picker.png" width="200"><br><sub>Opciones: buscar, escribir o mapa</sub></td>
+    <td align="center"><img src="docs/screenshots/06_dest_typing.png" width="200"><br><sub>Escribir el destino</sub></td>
+    <td align="center"><img src="docs/screenshots/07_dest_results.png" width="200"><br><sub>Resultados de búsqueda</sub></td>
+    <td align="center"><img src="docs/screenshots/08_dest_confirm.png" width="200"><br><sub>Confirmar el destino</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/09_map.png" width="200"><br><sub>Elegir un punto en el mapa</sub></td>
+    <td align="center"><img src="docs/screenshots/10_dest_confirm_map.png" width="200"><br><sub>Confirmar el punto del mapa</sub></td>
+    <td align="center"><img src="docs/screenshots/22_dest_offline.png" width="200"><br><sub>Sin conexión: aviso y reintento</sub></td>
+    <td></td>
+  </tr>
+</table>
+
+### Modo Transporte
+
+Durante el viaje se muestran la distancia restante, la velocidad y el radio de alerta (`R`), que crece
+con la velocidad. El anillo exterior indica el progreso. Al terminar, la app muestra un resumen con un
+comentario generado por IA.
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/11_transit_tracking.png" width="200"><br><sub>Inicio del seguimiento</sub></td>
+    <td align="center"><img src="docs/screenshots/12_transit_en_route.png" width="200"><br><sub>En ruta: distancia, velocidad y radio</sub></td>
+    <td align="center"><img src="docs/screenshots/14_summary_insight.png" width="200"><br><sub>Resumen del viaje con IA</sub></td>
+  </tr>
+</table>
+
+### Modo Siesta
+
+Primero calibra el pulso en reposo durante 20 s. Luego monitorea el estado de reposo (despierto, reposo
+ligero o profundo) con su puntaje y frecuencia cardíaca. Con *Siesta con Destino* también se muestra la
+distancia a la parada. Si estás en reposo profundo cerca del destino, el reloj lanza una alerta crítica
+que hay que descartar con un toque.
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/15_nap_calibrating.png" width="200"><br><sub>Calibración del pulso basal</sub></td>
+    <td align="center"><img src="docs/screenshots/16_nap_monitoring.png" width="200"><br><sub>Monitoreo del reposo</sub></td>
+    <td align="center"><img src="docs/screenshots/18_nap_with_destination.png" width="200"><br><sub>Siesta con destino</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/13_nap_proximity_alert_urgent.png" width="200"><br><sub>Alerta crítica de llegada</sub></td>
+    <td align="center"><img src="docs/screenshots/17_summary_nap.png" width="200"><br><sub>Resumen de la siesta con IA</sub></td>
+    <td align="center"><img src="docs/screenshots/21_ambient.png" width="200"><br><sub>Modo ambiente (bajo consumo)</sub></td>
+  </tr>
+</table>
+
+### Historial
+
+Todas las sesiones se guardan solo en el reloj, con su resultado, duración y resumen de IA.
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/19_history.png" width="200"><br><sub>Lista de sesiones</sub></td>
+    <td align="center"><img src="docs/screenshots/20_session_detail.png" width="200"><br><sub>Detalle de una sesión</sub></td>
+  </tr>
+</table>
+
+---
+
 ## ¿Cómo funciona?
 
 ```
