@@ -105,17 +105,19 @@ fun InsightCard(
                 // only 1.21:1 against the card and the button didn't read as a button.
                 Button(
                     onClick = onRetryInsight,
-                    modifier = Modifier.sizeIn(
-                        minWidth = WakeSyncSpacing.minTouchTarget,
-                        minHeight = WakeSyncSpacing.minTouchTarget
-                    ),
+                    modifier = Modifier
+                        .sizeIn(minWidth = WakeSyncSpacing.minTouchTarget)
+                        .height(WakeSyncSpacing.minTouchTarget),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = WakeSyncColors.BlueCard,
                         contentColor = WakeSyncColors.CreamSoft
                     ),
                     border = BorderStroke(WakeSyncSpacing.borderHairline, WakeSyncColors.SlateMist)
                 ) {
-                    Text(text = stringResource(R.string.btn_retry), style = WakeSyncTextStyles.Label)
+                    CenteredButtonLabel(
+                        text = stringResource(R.string.btn_retry),
+                        style = WakeSyncTextStyles.Label
+                    )
                 }
             }
         }

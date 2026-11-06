@@ -37,6 +37,7 @@ import com.google.android.horologist.compose.rotaryinput.rotaryWithScroll
 import com.wakesync.R
 import com.wakesync.core.model.WakeSyncState
 import com.wakesync.ui.ambient.LocalAmbientMode
+import com.wakesync.ui.components.CenteredButtonLabel
 import com.wakesync.ui.theme.WakeSyncColors
 import com.wakesync.ui.theme.WakeSyncShapes
 import com.wakesync.ui.theme.WakeSyncSpacing
@@ -107,11 +108,14 @@ fun SettingsScreen(
                 ) {
                     Button(
                         onClick = { showClearConfirmDialog = false },
-                        modifier = Modifier.sizeIn(minWidth = 50.dp, minHeight = 48.dp),
+                        modifier = Modifier.sizeIn(minWidth = 50.dp).height(WakeSyncSpacing.minTouchTarget),
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(containerColor = WakeSyncColors.BlueCard)
                     ) {
-                        Text(text = stringResource(R.string.btn_cancel), style = WakeSyncTextStyles.Label)
+                        CenteredButtonLabel(
+                            text = stringResource(R.string.btn_cancel),
+                            style = WakeSyncTextStyles.Label
+                        )
                     }
 
                     Button(
@@ -119,11 +123,14 @@ fun SettingsScreen(
                             showClearConfirmDialog = false
                             onClearHistory()
                         },
-                        modifier = Modifier.sizeIn(minWidth = 50.dp, minHeight = 48.dp),
+                        modifier = Modifier.sizeIn(minWidth = 50.dp).height(WakeSyncSpacing.minTouchTarget),
                         shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(containerColor = WakeSyncColors.RoseGold)
                     ) {
-                        Text(text = stringResource(R.string.btn_confirm), style = WakeSyncTextStyles.Label)
+                        CenteredButtonLabel(
+                            text = stringResource(R.string.btn_confirm),
+                            style = WakeSyncTextStyles.Label
+                        )
                     }
                 }
             }

@@ -10,8 +10,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.Button
@@ -140,12 +143,27 @@ fun ActiveAlertOverlay(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isUrgent) WakeSyncColors.EmberRose else WakeSyncColors.BlueCard,
                         contentColor = if (isUrgent) WakeSyncColors.NavyDeep else WakeSyncColors.CreamSoft
-                    )
+                    ),
+                    // Narrow side padding: the default one left ~60dp of text width inside the
+                    // 88dp circle, which split "Descartar" mid-word. No vertical padding, the
+                    // label is centered by CenteredButtonLabel instead.
+                    contentPadding = PaddingValues(horizontal = WakeSyncSpacing.sm)
                 ) {
-                    Text(
-                        text = if (isUrgent) stringResource(R.string.btn_dismiss_alert) else stringResource(R.string.btn_stop),
-                        style = WakeSyncTextStyles.Title,
-                        textAlign = TextAlign.Center
+                    // URGENT uses Label (12sp) in SemiBold so "Descartar Alarma" fits as two whole
+                    // words ("Descartar" / "Alarma"); the short "Detener" keeps Title.
+                    CenteredButtonLabel(
+                        text = if (isUrgent) {
+                            stringResource(R.string.btn_dismiss_alert)
+                        } else {
+                            stringResource(R.string.btn_stop)
+                        },
+                        style = if (isUrgent) {
+                            WakeSyncTextStyles.Label.copy(fontWeight = FontWeight.SemiBold)
+                        } else {
+                            WakeSyncTextStyles.Title
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 2
                     )
                 }
 

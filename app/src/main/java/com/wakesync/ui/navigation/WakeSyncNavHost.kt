@@ -46,6 +46,7 @@ import com.wakesync.core.places.DestinationSearchProvider
 import com.wakesync.core.session.SessionManager
 import com.wakesync.ui.ambient.LocalAmbientMode
 import com.wakesync.ui.components.ActiveAlertOverlay
+import com.wakesync.ui.components.CenteredButtonLabel
 import com.wakesync.ui.components.CircularProgressArc
 import com.wakesync.ui.components.CompactNotice
 import com.wakesync.ui.components.ConflictDialog
@@ -120,30 +121,34 @@ private fun DestinationPickerFallback(
                 Row(horizontalArrangement = Arrangement.spacedBy(WakeSyncSpacing.sm)) {
                     Button(
                         onClick = onRetry,
-                        modifier = Modifier.sizeIn(
-                            minWidth = WakeSyncSpacing.minTouchTarget,
-                            minHeight = WakeSyncSpacing.minTouchTarget
-                        ),
+                        modifier = Modifier
+                            .sizeIn(minWidth = WakeSyncSpacing.minTouchTarget)
+                            .height(WakeSyncSpacing.minTouchTarget),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = WakeSyncColors.BlueCard,
                             contentColor = WakeSyncColors.CreamSoft
                         ),
                         border = BorderStroke(WakeSyncSpacing.borderHairline, accentColor)
                     ) {
-                        Text(text = stringResource(R.string.btn_retry), style = WakeSyncTextStyles.Label)
+                        CenteredButtonLabel(
+                            text = stringResource(R.string.btn_retry),
+                            style = WakeSyncTextStyles.Label
+                        )
                     }
                     Button(
                         onClick = onExit,
-                        modifier = Modifier.sizeIn(
-                            minWidth = WakeSyncSpacing.minTouchTarget,
-                            minHeight = WakeSyncSpacing.minTouchTarget
-                        ),
+                        modifier = Modifier
+                            .sizeIn(minWidth = WakeSyncSpacing.minTouchTarget)
+                            .height(WakeSyncSpacing.minTouchTarget),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = WakeSyncColors.BlueCard,
                             contentColor = WakeSyncColors.CreamSoft
                         )
                     ) {
-                        Text(text = stringResource(R.string.btn_cancel), style = WakeSyncTextStyles.Label)
+                        CenteredButtonLabel(
+                            text = stringResource(R.string.btn_cancel),
+                            style = WakeSyncTextStyles.Label
+                        )
                     }
                 }
             }
