@@ -110,7 +110,10 @@ fun SettingsScreen(
                         onClick = { showClearConfirmDialog = false },
                         modifier = Modifier.sizeIn(minWidth = 50.dp).height(WakeSyncSpacing.minTouchTarget),
                         shape = CircleShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = WakeSyncColors.BlueCard)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = WakeSyncColors.BlueCard,
+                            contentColor = WakeSyncColors.CreamSoft
+                        )
                     ) {
                         CenteredButtonLabel(
                             text = stringResource(R.string.btn_cancel),
@@ -125,7 +128,10 @@ fun SettingsScreen(
                         },
                         modifier = Modifier.sizeIn(minWidth = 50.dp).height(WakeSyncSpacing.minTouchTarget),
                         shape = CircleShape,
-                        colors = ButtonDefaults.buttonColors(containerColor = WakeSyncColors.RoseGold)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = WakeSyncColors.RoseGold,
+                            contentColor = WakeSyncColors.NavyDeep
+                        )
                     ) {
                         CenteredButtonLabel(
                             text = stringResource(R.string.btn_confirm),
