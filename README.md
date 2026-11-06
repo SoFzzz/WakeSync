@@ -113,6 +113,7 @@ que hay que descartar con un toque.
 <table>
   <tr>
     <td align="center"><img src="docs/screenshots/15_nap_calibrating.png" width="200"><br><sub>Calibración del pulso basal</sub></td>
+    <td align="center"><img src="docs/screenshots/16b_nap_evaluating.png" width="200"><br><sub>Primera evaluación en curso</sub></td>
     <td align="center"><img src="docs/screenshots/16_nap_monitoring.png" width="200"><br><sub>Monitoreo del reposo</sub></td>
     <td align="center"><img src="docs/screenshots/18_nap_with_destination.png" width="200"><br><sub>Siesta con destino</sub></td>
   </tr>
