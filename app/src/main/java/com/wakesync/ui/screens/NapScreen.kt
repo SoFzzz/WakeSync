@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -13,10 +12,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material3.Text
 import com.wakesync.R
 import com.wakesync.core.model.NapPhase
@@ -47,9 +49,10 @@ import com.wakesync.ui.theme.WakeSyncTextStyles
  * shift its center ~32dp up, making it non-concentric with the screen (regression fixed here).
  * The calibration ring no longer rotates: the progress sweep alone already shows advancement.
  *
- * F17 (section 5.4): while the nap is active, a secondary `directions` icon (4.3) left of
- * `[Detener]` opens the Transporte destination flow via [onRequestTransit]; confirming a
- * destination there raises the session conflict dialog instead of silently replacing the nap.
+ * F26: with Simulation Mode on, a secondary ⚡ chip (4.3) right of `[Detener]` calls [onSimulateNap]
+ * during Calibrando / Monitoreando to release the simulated HR descent towards DEEP_REST. With
+ * Simulation Mode off (and in ambient mode) `[Detener]` is drawn alone, centered.
+ * [onRequestTransit] is currently not rendered on this screen.
  */
 @Composable
 fun NapScreen(
@@ -294,12 +297,71 @@ fun NapScreen(
         }
 
         if (!isAmbient) {
-            PrimaryBottomButton(
-                text = stringResource(R.string.btn_stop),
-                onClick = onStopSession,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = WakeSyncSpacing.primaryButtonBottomPadding)
+            if (showSimulate) {
+                // Detener keeps the exact spot it has with Simulation Mode off (bottom-centered);
+                // the secondary ⚡ chip hangs off its right edge, vertically centered on it.
+                CenteredWithTrailing(
+                    gap = SIMULATE_CHIP_GAP,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = WakeSyncSpacing.primaryButtonBottomPadding)
+                ) {
+                    PrimaryBottomButton(
+                        text = stringResource(R.string.btn_stop),
+                        onClick = onStopSession
+                    )
+                    SecondaryIconChip(
+                        icon = painterResource(R.drawable.ic_fast_forward),
+                        contentDescription = stringResource(R.string.btn_simulate_nap),
+                        onClick = onSimulateNap
+                    )
+                }
+            } else {
+                PrimaryBottomButton(
+                    text = stringResource(R.string.btn_stop),
+                    onClick = onStopSession,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = WakeSyncSpacing.primaryButtonBottomPadding)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Layout gap between `[Detener]`'s right edge and the ⚡ chip's 48dp touch box. Zero on purpose:
+ * the chip's visible 36dp circle is inset 6dp inside that box, so the visible gap is still 6dp.
+ * With `[Detener]` (~88dp wide) centered and its center 50dp above the bottom of the 227dp
+ * round screen, the circle's outer edge sits at ~111.0dp from the screen center (radius 113.5dp);
+ * a `WakeSyncSpacing.sm` (8dp) layout gap would push it to ~117dp and clip it against the bezel.
+ */
+private val SIMULATE_CHIP_GAP: Dp = 0.dp
+
+/**
+ * Places [content]'s first child (the primary button) so that it stays horizontally centered in
+ * this layout, and its second child (a trailing chip) [gap] to the right of the primary's right
+ * edge, vertically centered on the primary. The layout reserves an invisible slot of the same
+ * width on the left, so centering this layout centers the primary exactly as if it were alone.
+ * Its height is the primary's height, keeping the primary's bottom edge where the caller anchors
+ * it; a taller chip overflows evenly above and below (it is neither clipped nor re-positioned).
+ */
+@Composable
+private fun CenteredWithTrailing(
+    gap: Dp,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Layout(content = content, modifier = modifier) { measurables, constraints ->
+        val looseConstraints = constraints.copy(minWidth = 0, minHeight = 0)
+        val primary = measurables[0].measure(looseConstraints)
+        val trailing = measurables[1].measure(looseConstraints)
+        val sideSlot = gap.roundToPx() + trailing.width
+        layout(width = primary.width + 2 * sideSlot, height = primary.height) {
+            primary.placeRelative(x = sideSlot, y = 0)
+            trailing.placeRelative(
+                x = sideSlot + primary.width + gap.roundToPx(),
+                y = (primary.height - trailing.height) / 2
             )
         }
     }
