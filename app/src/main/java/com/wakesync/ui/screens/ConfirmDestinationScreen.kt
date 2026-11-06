@@ -34,11 +34,10 @@ import com.wakesync.ui.theme.WakeSyncTextStyles
  * `24.dp` padding already kept text off the curvature). Cancelar/Confirmar are icon buttons
  * (component 4.3, `ic_close`/`ic_check`) instead of plain-text circular buttons.
  *
- * [straightLineMeters] is frequently null in the current build because
- * `currentLocationProvider` is miswired in `WakeSyncApplication` (returns the transit
- * destination instead of the live GPS position — tracked as a connectivity-engineer
- * follow-up). The distance row is simply omitted when null rather than showing a
- * misleading "0 m" or "--" value.
+ * [straightLineMeters] is measured from the device's last known position
+ * (`DeviceLocationProvider`, wired in `WakeSyncApplication`). It is null when no cached
+ * fix is available or the location permission is missing; the distance row is then simply
+ * omitted rather than showing a misleading "0 m" or "--" value.
  */
 @Composable
 fun ConfirmDestinationScreen(

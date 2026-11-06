@@ -3,6 +3,7 @@ package com.wakesync
 import android.app.Application
 import android.util.Log
 import com.wakesync.core.data.SessionHistoryRepository
+import com.wakesync.core.geo.DeviceLocationProvider
 import com.wakesync.core.insights.InsightProvider
 import com.wakesync.core.places.DestinationSearchProvider
 import com.wakesync.insights.InsightRepository
@@ -30,9 +31,10 @@ class WakeSyncApplication : Application() {
 
         // Phase 4b Connectivity Registrations (CR-01, RF-CORE-07, RF-NET-01, RF-PLC-01, RF-INS-01)
         val backendClient = BackendClient(this)
+        val deviceLocationProvider = DeviceLocationProvider(this)
         val destinationRepository = DestinationSearchRepository(
             backendClient = backendClient,
-            currentLocationProvider = { coordinator.sessionManager.state.value.transitState.destination }
+            currentLocationProvider = deviceLocationProvider::lastKnownLocation
         )
         val sessionHistoryRepository = SessionHistoryRepository(this)
         val insightRepository = InsightRepository(
