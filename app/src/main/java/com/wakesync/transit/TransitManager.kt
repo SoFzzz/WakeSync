@@ -55,7 +55,12 @@ class TransitManager(
 
     private var trackingJob: Job? = null
     private var dismissalCollectorJob: Job? = null
-    private val isTerminating = AtomicBoolean(false)
+    /**
+     * True whenever this manager has no live session: before the first [startSession] and after
+     * termination. Starts true so a teardown [stopSession] (e.g. after a Nap ends) never cancels
+     * an alert that belongs to another mode.
+     */
+    private val isTerminating = AtomicBoolean(true)
 
     /**
      * F17: start timestamp of the Transit session this manager started, captured right after
@@ -190,12 +195,21 @@ class TransitManager(
 
     /**
      * Cancels the active transit session manually (RF-TRAN-06 [Detener]).
+     *
+     * Also invoked by the coordinator's teardown whenever any session ends. If this manager has
+     * no live session (never started, or already terminated, e.g. arrival completed with a
+     * MODERATE one-shot alert), the call only releases jobs and never cancels the alert, so the
+     * arrival overlay and vibration stay until the user dismisses them or they auto-clear.
      */
     fun stopSession() {
         dismissalCollectorJob?.cancel()
         dismissalCollectorJob = null
         trackingJob?.cancel()
         trackingJob = null
+        if (isTerminating.get()) {
+            Log.d(TAG, "stopSession: no live transit session; leaving any active alert untouched")
+            return
+        }
         resolveAlertController()?.cancelAlert()
         terminateSession(SessionOutcome.CANCELLED, stopActiveAlert = true)
     }

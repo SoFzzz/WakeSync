@@ -165,6 +165,34 @@ class TransitManagerTest {
     }
 
     @Test
+    fun `teardown stopSession after MODERATE arrival keeps the arrival alert active`() = testScope.runTest {
+        transitManager.startSession(destination)
+        mockAlertController.cancelAlertCalled = false
+
+        locationFlow.emit(destination)
+        advanceUntilIdle()
+
+        // Coordinator teardown (stopActiveSession) runs right after the session ends
+        transitManager.stopSession()
+        advanceUntilIdle()
+
+        assertFalse("Teardown must not cancel the arrival alert", mockAlertController.cancelAlertCalled)
+        assertEquals(AlertLevel.MODERATE, mockAlertController.activeAlertLevel.value)
+        assertEquals(TransitPhase.COMPLETED, sessionManager.state.value.transitState.phase)
+    }
+
+    @Test
+    fun `stopSession on a manager that never started does not cancel another mode alert`() = testScope.runTest {
+        mockAlertController.triggerAlert(AlertLevel.MODERATE)
+
+        transitManager.stopSession()
+        advanceUntilIdle()
+
+        assertFalse(mockAlertController.cancelAlertCalled)
+        assertEquals(AlertLevel.MODERATE, mockAlertController.activeAlertLevel.value)
+    }
+
+    @Test
     fun `arrival with alertController null completes cleanly without NPE`() = testScope.runTest {
         val noAlertTransitManager = TransitManager(
             sessionManager = sessionManager,

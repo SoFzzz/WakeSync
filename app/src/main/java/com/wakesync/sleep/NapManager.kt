@@ -94,6 +94,27 @@ class NapManager(
     private var elapsedSeconds: Int = 0
     private var remainingNapSeconds: Int = 0
 
+    /**
+     * Last distance to the nap destination computed by the location tracking job. Re-published on
+     * every progress tick because SessionManager.updateNapProgress overwrites the distance field.
+     */
+    @Volatile
+    private var lastDistanceMeters: Float? = null
+
+    /**
+     * Publishes the current nap progress for [phase], always carrying [lastDistanceMeters] so the
+     * per-second ticks never wipe the destination distance shown on screen.
+     */
+    private fun publishProgress(phase: NapPhase) {
+        sessionManager.updateNapProgress(
+            phase,
+            elapsedSeconds,
+            remainingNapSeconds,
+            restLatencySeconds,
+            lastDistanceMeters
+        )
+    }
+
     private fun resolveAlertController(): AlertControllerContract? {
         val controller = alertController ?: AlertControllerProvider.get()
         if (controller == null) {
@@ -113,6 +134,7 @@ class NapManager(
         restLatencySeconds = null
         elapsedSeconds = 0
         remainingNapSeconds = NAP_COUNTDOWN_SECONDS
+        lastDistanceMeters = null
 
         sessionManager.requestStartSession(SessionType.NAP, destination)
         ownedSessionStartTimestamp = sessionManager.activeSessionStartTimestamp(SessionType.NAP)
@@ -138,13 +160,8 @@ class NapManager(
                     val isDeepRest = (currentNapPhase == NapPhase.REST_CONFIRMED)
                     val dynamicRadius = GeofenceCalculator.calculateDynamicAlertRadius(speedMps = 0.0, isDeepRest = isDeepRest)
 
-                    sessionManager.updateNapProgress(
-                        currentNapPhase,
-                        elapsedSeconds,
-                        remainingNapSeconds,
-                        restLatencySeconds,
-                        distance.toFloat()
-                    )
+                    lastDistanceMeters = distance.toFloat()
+                    publishProgress(currentNapPhase)
 
                     if (distance <= dynamicRadius) {
                         currentNapPhase = NapPhase.ALERTING
@@ -164,7 +181,7 @@ class NapManager(
 
     private suspend fun CoroutineScope.runNapLifecycle() {
         // --- PHASE 1: Calibrating (20s) ---
-        sessionManager.updateNapProgress(NapPhase.CALIBRATING, elapsedSeconds, remainingNapSeconds, restLatencySeconds)
+        publishProgress(NapPhase.CALIBRATING)
         val calibrationSamples = java.util.Collections.synchronizedList(mutableListOf<Int>())
         val firstSampleSecond = java.util.concurrent.atomic.AtomicInteger(-1)
         var calSeconds = 0
@@ -186,7 +203,7 @@ class NapManager(
             delay(1000L)
             calSeconds++
             elapsedSeconds++
-            sessionManager.updateNapProgress(NapPhase.CALIBRATING, elapsedSeconds, remainingNapSeconds, restLatencySeconds)
+            publishProgress(NapPhase.CALIBRATING)
         }
         hrCollectorJob?.cancel()
 
@@ -210,7 +227,7 @@ class NapManager(
 
         // --- PHASE 2: Monitoring ---
         currentNapPhase = NapPhase.MONITORING
-        sessionManager.updateNapProgress(NapPhase.MONITORING, elapsedSeconds, remainingNapSeconds, restLatencySeconds)
+        publishProgress(NapPhase.MONITORING)
 
         var deepRestConfirmed = false
 
@@ -227,13 +244,13 @@ class NapManager(
             delay(1000L)
             monitoringSeconds++
             elapsedSeconds++
-            sessionManager.updateNapProgress(NapPhase.MONITORING, elapsedSeconds, remainingNapSeconds, restLatencySeconds)
+            publishProgress(NapPhase.MONITORING)
 
             // 25-minute safety timeout check (RF-NAP-05: 25 minutes of monitoring)
             if (monitoringSeconds >= SAFETY_TIMEOUT_SECONDS) {
                 evalCollectorJob.cancel()
                 currentNapPhase = NapPhase.ALERTING
-                sessionManager.updateNapProgress(NapPhase.ALERTING, elapsedSeconds, remainingNapSeconds, restLatencySeconds)
+                publishProgress(NapPhase.ALERTING)
                 handle25MinTimeout()
                 return
             }
@@ -245,19 +262,19 @@ class NapManager(
         // --- PHASE 3: Rest Confirmed (15-min countdown) ---
         currentNapPhase = NapPhase.REST_CONFIRMED
         restLatencySeconds = elapsedSeconds
-        sessionManager.updateNapProgress(NapPhase.REST_CONFIRMED, elapsedSeconds, remainingNapSeconds, restLatencySeconds)
+        publishProgress(NapPhase.REST_CONFIRMED)
         resolveAlertController()?.triggerAlert(AlertLevel.SOFT) // Level 1 soft confirmation pre-warning
 
         while (remainingNapSeconds > 0 && isActive && !isTerminating.get()) {
             delay(1000L)
             elapsedSeconds++
             remainingNapSeconds--
-            sessionManager.updateNapProgress(NapPhase.REST_CONFIRMED, elapsedSeconds, remainingNapSeconds, restLatencySeconds)
+            publishProgress(NapPhase.REST_CONFIRMED)
         }
 
         if (remainingNapSeconds <= 0 && !isTerminating.get()) {
             currentNapPhase = NapPhase.ALERTING
-            sessionManager.updateNapProgress(NapPhase.ALERTING, elapsedSeconds, remainingNapSeconds, restLatencySeconds)
+            publishProgress(NapPhase.ALERTING)
             handle15MinExpiration()
         }
     }
@@ -361,9 +378,15 @@ class NapManager(
 
     /**
      * Manually cancels the active nap session.
+     *
+     * The coordinator calls this whenever any session ends (including after this nap already
+     * terminated on its own, or after a Transit session), so the active alert is only cancelled
+     * when this manager owns a session that is still running; otherwise an alert that must stay
+     * visible (e.g. an arrival alert) would be silenced.
      */
     fun stopSession() {
-        Log.i(TAG, "stopSession: cancelling napJob, locationTrackingJob, absoluteCapJob, dismissalCollectorJob")
+        val ownsRunningSession = ownedSessionStartTimestamp != null && !isTerminating.get()
+        Log.i(TAG, "stopSession (ownsRunningSession=$ownsRunningSession): cancelling nap jobs")
         napJob?.cancel()
         napJob = null
         locationTrackingJob?.cancel()
@@ -374,6 +397,7 @@ class NapManager(
         dismissalCollectorJob = null
         lateBaselineJob?.cancel()
         lateBaselineJob = null
+        if (!ownsRunningSession) return
         resolveAlertController()?.cancelAlert()
         terminateSession(SessionOutcome.CANCELLED, stopActiveAlert = true)
     }

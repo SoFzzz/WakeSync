@@ -564,6 +564,78 @@ class NapManagerTest {
         mockSensorEngine.stopSimulation()
     }
 
+    @Test
+    fun `stopSession after the nap already ended does not cancel an alert that must stay visible`() = testScope.runTest {
+        napManager.startSession()
+        advanceTimeBy(21_000L)
+        runCurrent()
+        // 25-minute timeout ends the session on its own while its SOFT alert is still shown
+        advanceTimeBy(1500_000L)
+        runCurrent()
+        assertEquals(NapPhase.TIMED_OUT, sessionManager.state.value.napState.phase)
+        assertEquals(AlertLevel.SOFT, mockAlertController.activeAlertLevel.value)
+
+        // Coordinator teardown calls stopSession() after the session already ended
+        mockAlertController.cancelAlertCalled = false // session start itself cancels any stale alert
+        napManager.stopSession()
+        runCurrent()
+
+        assertFalse(mockAlertController.cancelAlertCalled)
+        assertEquals(AlertLevel.SOFT, mockAlertController.activeAlertLevel.value)
+        assertEquals(NapPhase.TIMED_OUT, sessionManager.state.value.napState.phase)
+    }
+
+    @Test
+    fun `stopSession on a manager that never started a nap does not cancel another mode's alert`() = testScope.runTest {
+        // e.g. a Transit arrival alert still active when the coordinator tears every manager down
+        mockAlertController.triggerAlert(AlertLevel.URGENT)
+
+        napManager.stopSession()
+        runCurrent()
+
+        assertFalse(mockAlertController.cancelAlertCalled)
+        assertEquals(AlertLevel.URGENT, mockAlertController.activeAlertLevel.value)
+    }
+
+    @Test
+    fun `stopSession on a running nap cancels the active alert`() = testScope.runTest {
+        napManager.startSession()
+        advanceTimeBy(21_000L)
+        runCurrent()
+        restEvaluationFlow.emit(RestEvaluationResult(score = 0.65f, state = RestState.DEEP_REST, consecutiveDeepRestCount = 2, isDataValid = true))
+        advanceTimeBy(1000L)
+        runCurrent()
+        assertEquals(AlertLevel.SOFT, mockAlertController.activeAlertLevel.value)
+
+        napManager.stopSession()
+        runCurrent()
+
+        assertTrue(mockAlertController.cancelAlertCalled)
+        assertEquals(AlertLevel.NONE, mockAlertController.activeAlertLevel.value)
+        assertEquals(NapPhase.CANCELLED, sessionManager.state.value.napState.phase)
+    }
+
+    @Test
+    fun `destination distance survives the per-second progress ticks`() = testScope.runTest {
+        val destination = GeoPoint(6.2518, -75.5684, "Campus UCC")
+        napManager.startSession(destination)
+        // ~11 km away: far outside R_alert, so no proximity interrupt
+        locationFlow.emit(GeoPoint(6.3518, -75.5684, "Far away"))
+        runCurrent()
+        val distance = sessionManager.state.value.napState.distanceToDestinationMeters
+        assertNotNull(distance)
+
+        advanceTimeBy(5_000L)
+        runCurrent()
+        assertEquals(distance, sessionManager.state.value.napState.distanceToDestinationMeters)
+
+        advanceTimeBy(20_000L) // crosses into MONITORING
+        runCurrent()
+        assertEquals(NapPhase.MONITORING, sessionManager.state.value.napState.phase)
+        assertEquals(distance, sessionManager.state.value.napState.distanceToDestinationMeters)
+        napManager.stopSession()
+    }
+
     class TestAlertController : AlertControllerContract {
         private val _activeAlertLevel = MutableStateFlow(AlertLevel.NONE)
         override val activeAlertLevel: StateFlow<AlertLevel> = _activeAlertLevel.asStateFlow()
