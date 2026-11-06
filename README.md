@@ -91,13 +91,14 @@ la sesión, WakeSync muestra la dirección y la distancia en línea recta para c
 ### Modo Transporte
 
 Durante el viaje se muestran la distancia restante, la velocidad y el radio de alerta (`R`), que crece
-con la velocidad. El anillo exterior indica el progreso. Al terminar, la app muestra un resumen con un
-comentario generado por IA.
+con la velocidad. El anillo exterior indica el progreso. Al entrar en el radio de alerta, el reloj vibra
+y muestra el aviso de llegada; luego aparece un resumen con un comentario generado por IA.
 
 <table>
   <tr>
     <td align="center"><img src="docs/screenshots/11_transit_tracking.png" width="200"><br><sub>Inicio del seguimiento</sub></td>
     <td align="center"><img src="docs/screenshots/12_transit_en_route.png" width="200"><br><sub>En ruta: distancia, velocidad y radio</sub></td>
+    <td align="center"><img src="docs/screenshots/23_transit_arrival_alert.png" width="200"><br><sub>Alerta de llegada (vibración)</sub></td>
     <td align="center"><img src="docs/screenshots/14_summary_insight.png" width="200"><br><sub>Resumen del viaje con IA</sub></td>
   </tr>
 </table>
