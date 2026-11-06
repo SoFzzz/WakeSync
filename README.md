@@ -107,20 +107,31 @@ y muestra el aviso de llegada; luego aparece un resumen con un comentario genera
 
 Primero calibra el pulso en reposo durante 20 s. Luego monitorea el estado de reposo (despierto, reposo
 ligero o profundo) con su puntaje y frecuencia cardíaca. Con *Siesta con Destino* también se muestra la
-distancia a la parada. Si estás en reposo profundo cerca del destino, el reloj lanza una alerta crítica
-que hay que descartar con un toque.
+distancia a la parada. Al confirmarse el reposo profundo empieza una cuenta regresiva de 15 minutos y,
+al terminar, suena la alarma, que hay que descartar con un toque. Si estás en reposo profundo cerca del
+destino, el reloj lanza una alerta crítica de llegada.
+
+En el Modo Simulación aparece el botón ▷▷ junto a *Detener*: baja el pulso simulado para llegar al
+reposo profundo en segundos.
 
 <table>
   <tr>
-    <td align="center"><img src="docs/screenshots/15_nap_calibrating.png" width="200"><br><sub>Calibración del pulso basal</sub></td>
+    <td align="center"><img src="docs/screenshots/15_nap_calibrating.png" width="200"><br><sub>Calibración (con ▷▷ en simulación)</sub></td>
     <td align="center"><img src="docs/screenshots/16b_nap_evaluating.png" width="200"><br><sub>Primera evaluación en curso</sub></td>
     <td align="center"><img src="docs/screenshots/16_nap_monitoring.png" width="200"><br><sub>Monitoreo del reposo</sub></td>
-    <td align="center"><img src="docs/screenshots/18_nap_with_destination.png" width="200"><br><sub>Siesta con destino</sub></td>
+    <td align="center"><img src="docs/screenshots/24_nap_rest_confirmed.png" width="200"><br><sub>Reposo confirmado: cuenta de 15 min</sub></td>
   </tr>
   <tr>
+    <td align="center"><img src="docs/screenshots/24b_nap_soft_alert.png" width="200"><br><sub>Aviso suave al confirmar</sub></td>
+    <td align="center"><img src="docs/screenshots/25_nap_alarm.png" width="200"><br><sub>Alarma para despertar</sub></td>
+    <td align="center"><img src="docs/screenshots/26_summary_nap_completed.png" width="200"><br><sub>Siesta completada con IA</sub></td>
+    <td align="center"><img src="docs/screenshots/17_summary_nap.png" width="200"><br><sub>Siesta cancelada con IA</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/18_nap_with_destination.png" width="200"><br><sub>Siesta con destino</sub></td>
     <td align="center"><img src="docs/screenshots/13_nap_proximity_alert_urgent.png" width="200"><br><sub>Alerta crítica de llegada</sub></td>
-    <td align="center"><img src="docs/screenshots/17_summary_nap.png" width="200"><br><sub>Resumen de la siesta con IA</sub></td>
     <td align="center"><img src="docs/screenshots/21_ambient.png" width="200"><br><sub>Modo ambiente (bajo consumo)</sub></td>
+    <td></td>
   </tr>
 </table>
 
