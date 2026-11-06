@@ -114,10 +114,9 @@ export async function handleInsights(request: Request, env: Env): Promise<Respon
       .replace(/\r?\n|\r/g, ' ')
       .trim();
 
-    // Defense-in-depth: clamp to maximum 140 chars
-    if (cleanInsight.length > MAX_INSIGHT_CHARS) {
-      cleanInsight = cleanInsight.slice(0, MAX_INSIGHT_CHARS).trim();
-    }
+    // Defense-in-depth: clamp to maximum 140 chars at a word boundary; a reply stopped by
+    // max_tokens (finish_reason=length) is incomplete even when it is shorter than the limit
+    cleanInsight = clampInsight(cleanInsight, MAX_INSIGHT_CHARS, choice?.finish_reason === 'length');
 
     if (!cleanInsight) {
       // Surface the silent fallback without logging any model content (RNF-BE-02)
@@ -140,6 +139,37 @@ export async function handleInsights(request: Request, env: Env): Promise<Respon
     }
     return jsonError('upstream_error', 'DeepSeek API request failed', 502);
   }
+}
+
+const INSIGHT_ELLIPSIS = '…';
+const SENTENCE_END_CHARS = new Set(['.', '!', '?', INSIGHT_ELLIPSIS]);
+const TRAILING_CUT_REGEX = /[\s,;:.\-–—…]+$/;
+
+/**
+ * Clamps an insight to at most `max` characters without cutting a word in half (RF-INS-04).
+ * Text shorter than `max` (or exactly `max` and ending in sentence punctuation) is returned trimmed,
+ * unless `truncated` flags it as incomplete. Otherwise it is cut at the last word boundary, stripped
+ * of trailing punctuation and suffixed with a single ellipsis, never exceeding `max` characters.
+ * A single word longer than the limit falls back to a hard cut of `max - 1` characters plus ellipsis.
+ */
+export function clampInsight(raw: string, max: number, truncated = false): string {
+  const text = raw.trim();
+  if (!text) return text;
+  const looksComplete =
+    text.length < max || (text.length === max && SENTENCE_END_CHARS.has(text[text.length - 1]));
+  if (looksComplete && !truncated) return text;
+
+  const limit = max - 1;
+  const hardCut = text.slice(0, limit);
+  let wordCut = hardCut;
+  // The char right after the cut tells whether the cut fell mid-word; a model reply stopped by
+  // max_tokens that fits within the limit may still end in a partial word
+  if (text.length <= limit || !/\s/.test(text[limit])) {
+    const lastSpace = hardCut.search(/\s\S*$/);
+    if (lastSpace > 0) wordCut = hardCut.slice(0, lastSpace);
+  }
+  const body = wordCut.replace(TRAILING_CUT_REGEX, '') || hardCut.trimEnd();
+  return body + INSIGHT_ELLIPSIS;
 }
 
 function jsonError(error: ErrorResponse['error'], message: string, status: number): Response {

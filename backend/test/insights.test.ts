@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import worker from '../src/index';
 import { Env } from '../src/types';
 import { resetRateLimits } from '../src/utils';
-import { FALLBACK_INSIGHT } from '../src/insights';
+import { FALLBACK_INSIGHT, clampInsight } from '../src/insights';
 
 const mockEnv: Env = {
   DEEPSEEK_MODEL: 'deepseek-flash',
@@ -125,6 +125,20 @@ describe('WakeSync Gateway - AI Insights with DeepSeek', () => {
 
     const body: any = await res.json();
     expect(body.insight.length).toBeLessThanOrEqual(140);
+    expect(body.insight.endsWith('…')).toBe(true);
+    const visible = body.insight.slice(0, -1);
+    expect(overlyVerboseText.startsWith(visible)).toBe(true);
+    expect(overlyVerboseText[visible.length]).toBe(' ');
+  });
+
+  it('POST /v1/insights drops the partial last word when DeepSeek stops at max_tokens', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      deepseekResponse('Buen viaje, intenta descansar en el proximo trayec', 'length')
+    );
+
+    const res = await worker.fetch(insightRequestFor(), mockEnv);
+    const body: any = await res.json();
+    expect(body.insight).toBe('Buen viaje, intenta descansar en el proximo…');
   });
   const validTransitPayload = {
     sessionType: 'TRANSIT',
@@ -255,5 +269,53 @@ describe('WakeSync Gateway - AI Insights with DeepSeek', () => {
     const text = await res.text();
     expect(text).toContain('401');
     expect(text).not.toContain('secret-detail');
+  });
+});
+
+/** Builds a valid insights request with the 4 aggregated fields. */
+function insightRequestFor(): Request {
+  return new Request('http://localhost/v1/insights', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-WakeSync-App-Token': mockEnv.APP_TOKEN },
+    body: JSON.stringify({ sessionType: 'NAP', durationSeconds: 900, restLatencySeconds: 120, outcome: 'COMPLETED' }),
+  });
+}
+
+describe('clampInsight', () => {
+  const MAX = 140;
+  const full =
+    'Lograste descansar rapido durante el viaje, sigue asi y procura mantener una rutina de sueno estable para aprovechar mejor el proximo trayecto.';
+
+  it('returns short text unchanged', () => {
+    expect(clampInsight('  Buen descanso, repite la siesta.  ', MAX)).toBe('Buen descanso, repite la siesta.');
+  });
+
+  it('cuts long text at a word boundary and appends an ellipsis', () => {
+    const result = clampInsight(full, MAX);
+    expect(result.length).toBeLessThanOrEqual(MAX);
+    expect(result).toBe(full.slice(0, full.indexOf(' trayecto')) + '…');
+  });
+
+  it('treats text of exactly max length cut mid-word as truncated', () => {
+    const cut = full.slice(0, MAX);
+    expect(cut.length).toBe(MAX);
+    const result = clampInsight(cut, MAX);
+    expect(result.length).toBeLessThanOrEqual(MAX);
+    expect(result.endsWith('proximo…')).toBe(true);
+  });
+
+  it('keeps text of exactly max length ending in a period', () => {
+    const text = 'a'.repeat(MAX - 1) + '.';
+    expect(clampInsight(text, MAX)).toBe(text);
+  });
+
+  it('strips trailing punctuation before the ellipsis', () => {
+    expect(clampInsight('Uno dos, ' + 'x'.repeat(MAX), MAX)).toBe('Uno dos…');
+  });
+
+  it('hard cuts a single very long word to max - 1 chars plus ellipsis', () => {
+    const result = clampInsight('a'.repeat(MAX + 20), MAX);
+    expect(result).toBe('a'.repeat(MAX - 1) + '…');
+    expect(result.length).toBe(MAX);
   });
 });

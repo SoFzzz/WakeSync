@@ -111,13 +111,8 @@ class InsightRepository(
 
                 when (result) {
                     is ApiResult.Success -> {
-                        // Re-validate and clamp text to <= 140 chars on the watch side (RF-INS-04)
-                        val rawText = result.data.trim()
-                        val clampedText = if (rawText.length > INSIGHTS_MAX_CHARS) {
-                            rawText.take(INSIGHTS_MAX_CHARS).trim()
-                        } else {
-                            rawText
-                        }
+                        // Re-validate and clamp text to <= 140 chars at a word boundary (RF-INS-04)
+                        val clampedText = clampInsightText(result.data, INSIGHTS_MAX_CHARS)
 
                         // Persist to DataStore
                         insightUpdater(sessionStartTimestamp, clampedText)
