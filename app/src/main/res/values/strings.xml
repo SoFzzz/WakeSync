@@ -30,6 +30,8 @@
     <string name="nap_base_hr_format">FC Base: %1$d BPM</string>
     <string name="nap_current_hr_format">FC: %1$d BPM</string>
     <string name="nap_rest_score_format">Score: %1$.2f</string>
+    <string name="nap_rest_score_placeholder">Score: --</string>
+    <string name="nap_rest_state_evaluating">Evaluando…</string>
     <string name="nap_remaining_time_format">%1$02d:%2$02d</string>
     <string name="nap_dest_distance_format">Destino: %1$.0f m</string>
     <string name="siesta_with_destination_title">Siesta con Destino</string>

@@ -139,7 +139,8 @@ fun NapScreen(
 
             NapPhase.MONITORING -> {
                 // Estado 2: Monitoreando — dato principal = estado de reposo
-                val score = biometrics.restScore ?: 0.0f
+                val isAwaitingEvaluation = isAwaitingMonitoringEvaluation(biometrics.restState, biometrics.restScore)
+                val score = if (isAwaitingEvaluation) 0.0f else biometrics.restScore ?: 0.0f
                 if (!isAmbient) {
                     CircularProgressArc(
                         progress = score,
@@ -174,13 +175,12 @@ fun NapScreen(
                     // Rest-state label: kept to one line (Title, not Display) so it never
                     // pushes Score/FC behind Detener/simular on longer labels ("Reposo Ligero").
                     Text(
-                        text = when (biometrics.restState) {
-                            RestState.AWAKE -> stringResource(R.string.rest_state_awake)
-                            RestState.LIGHT_REST -> stringResource(R.string.rest_state_light)
-                            RestState.DEEP_REST -> stringResource(R.string.rest_state_deep)
-                            RestState.CALIBRATING -> stringResource(R.string.nap_calibrating_title)
-                            RestState.SENSOR_UNAVAILABLE -> stringResource(R.string.rest_state_sensor_unavailable)
-                            RestState.UNKNOWN -> stringResource(R.string.rest_state_unknown)
+                        text = when {
+                            isAwaitingEvaluation -> stringResource(R.string.nap_rest_state_evaluating)
+                            biometrics.restState == RestState.AWAKE -> stringResource(R.string.rest_state_awake)
+                            biometrics.restState == RestState.LIGHT_REST -> stringResource(R.string.rest_state_light)
+                            biometrics.restState == RestState.DEEP_REST -> stringResource(R.string.rest_state_deep)
+                            else -> stringResource(R.string.rest_state_sensor_unavailable)
                         },
                         style = WakeSyncTextStyles.Title,
                         color = WakeSyncColors.CreamSoft,
@@ -191,7 +191,11 @@ fun NapScreen(
                     Spacer(modifier = Modifier.height(WakeSyncSpacing.xs))
 
                     Text(
-                        text = stringResource(R.string.nap_rest_score_format, score),
+                        text = if (isAwaitingEvaluation) {
+                            stringResource(R.string.nap_rest_score_placeholder)
+                        } else {
+                            stringResource(R.string.nap_rest_score_format, score)
+                        },
                         style = WakeSyncTextStyles.Label,
                         color = WakeSyncColors.RoseGold
                     )
@@ -300,3 +304,15 @@ fun NapScreen(
         }
     }
 }
+
+/**
+ * True while a Nap in MONITORING has no rest evaluation of its own yet. The relay in
+ * `AppSessionCoordinator` only resolves `RestState.CALIBRATING` while the nap is still calibrating
+ * (and `UNKNOWN` is the pre-session default), so either value seen during MONITORING is a leftover
+ * from before the first post-calibration evaluation (up to ~10 s). Its score is the engine's
+ * placeholder 0.0, not a measurement, so the screen shows a neutral placeholder instead. A real
+ * evaluation always carries AWAKE / LIGHT_REST / DEEP_REST (or SENSOR_UNAVAILABLE), so a genuinely
+ * evaluated 0.00 score is still displayed as such.
+ */
+internal fun isAwaitingMonitoringEvaluation(restState: RestState, restScore: Float?): Boolean =
+    restScore == null || restState == RestState.CALIBRATING || restState == RestState.UNKNOWN
