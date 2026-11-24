@@ -6,6 +6,8 @@ WakeSync es una aplicación nativa e independiente (*standalone*) para relojes W
 **descansar sin quedarte dormido de más** y a **no pasarte de tu parada** en el transporte público.
 Funciona por completo en el reloj, sin necesidad de un teléfono.
 
+🎬 **Video de demostración:** [ver en YouTube](https://youtu.be/nxZelK0njuI)
+
 > Proyecto académico desarrollado en la Universidad Cooperativa de Colombia (UCC) — Diseño, quinto semestre.
 
 ---
